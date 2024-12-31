@@ -1,0 +1,39 @@
+#ifndef SYSLOGGER_HPP
+#define SYSLOGGER_HPP
+
+#include <syslog.h>
+#include <loge.hpp>
+
+using sys_logger_base = loge<false>;
+
+class sys_logger final : public sys_logger_base {
+  int priority_;
+
+  public:
+
+  void priority(int p) {
+    priority_ = p;
+  }
+
+  int priority() {
+    return priority_;
+  }
+
+  void logfn() override {
+
+    /* buffer char array may not be null-terminated */
+    buffer[buffer.size() - 1] = '\0';
+
+    syslog(priority_, "%s\n", buffer.data());
+  }
+
+  sys_logger(int priority, sys_logger_base::loge_level loglevel)
+    : loge(loglevel) , priority_(priority) {
+  }
+
+  ~sys_logger() {
+    closelog();
+  }
+};
+
+#endif /* SYSLOGGER_HPP */
