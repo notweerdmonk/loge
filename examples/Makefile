@@ -9,17 +9,17 @@ CFLAGS += -Wno-unused-variable -Wno-unused-parameter -Wno-unused-function
 
 all: ctest cctest ctestwin cctestwin
 
-cctest: ../loge.hpp fdlogger.hpp filelogger.hpp test.cc
-	g++ -ggdb3 -Wall -Wextra -std=$(CPP_VERSION) $(CFLAGS) $(INCLUDE_FLAGS) test.cc -o $@
+cctest: ../loge.hpp fdlogger.hpp filelogger.hpp cctest.cc
+	g++ -ggdb3 -Wall -Wextra -std=$(CPP_VERSION) $(CFLAGS) $(INCLUDE_FLAGS) cctest.cc -o $@
 
-cctestwin: ../loge.hpp fdlogger.hpp filelogger.hpp test.cc
-	cl.exe /EHsc $(INCLUDE_FLAGS_MSVC) test.cc /Fe: $@
+cctestwin: ../loge.hpp fdlogger.hpp filelogger.hpp cctest.cc
+	cl.exe /EHsc $(INCLUDE_FLAGS_MSVC) cctest.cc /Fe: $@
 
-ctestwin: ../loge.hpp test.c logmore.c
-	cl.exe $(INCLUDE_FLAGS_MSVC) test.c logmore.c /Fe: $@
+ctestwin: ../loge.hpp ctest.c logmore.c
+	cl.exe $(INCLUDE_FLAGS_MSVC) ctest.c logmore.c /Fe: $@
 
-ctest: ../loge.hpp test.c logmore.c
-	gcc -ggdb3 -Wall -Wextra -std=$(C_VERSION) $(CFLAGS) $(INCLUDE_FLAGS) test.c logmore.c -o $@
+ctest: ../loge.hpp ctest.c logmore.c
+	gcc -ggdb3 -Wall -Wextra -std=$(C_VERSION) $(CFLAGS) $(INCLUDE_FLAGS) ctest.c logmore.c -o $@
 
 clean:
 	rm -f ctest cctest test.obj logmore.obj ctestwin.exe cctestwin.exe
