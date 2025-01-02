@@ -372,7 +372,7 @@ int dprintf(int d, const char *fmt, ...) {
 static
 socket_type sock_connect(const char *host, unsigned short port, int type, int ipv6) {
 
-  socket_type sock = -1;
+  socket_type sock = LOGE_SOCK_ERR;
 
   if (!host) {
     return sock;
@@ -428,7 +428,7 @@ socket_type sock_connect(const char *host, unsigned short port, int type, int ip
 
 error:
   close(sock);
-  sock = -1;
+  sock = LOGE_SOCK_ERR;
 
 #elif defined(_WIN64)
 
