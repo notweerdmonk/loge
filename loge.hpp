@@ -178,6 +178,28 @@
 
 #endif /* !__cplusplus */
 
+/* Stringification macros */
+#define __xstr(s) __tostr(s)
+#define __tostr(s) #s
+
+
+/* Adjustment for fdopen */
+#if defined(_MSC_VER)
+
+#ifdef fdopen
+#undef fdopen
+#endif
+#define fdopen _fdopen
+
+#elif !defined(_POSIX_C_SOURCE) && !defined(_MSC_VER)
+
+/* Declare fdopen anyway */
+extern FILE *fdopen(int fd, const char *mode);
+
+#endif
+
+#define fdopen_str __xstr(fdopen)
+
 
 #ifdef __cplusplus
 
@@ -516,13 +538,6 @@ const char *loglevel_strtbl_color[] =  {
 
 #ifndef __cplusplus
 
-/* Declare fdopen anyway */
-#if !defined(_POSIX_C_SOURCE) && !defined(_MSC_VER)
-
-extern FILE *fdopen(int fd, const char *mode);
-
-#endif
-
 /**
  * @brief Macro to be used for logging information.
  * @param ploge Pointer to struct loge.
@@ -780,13 +795,9 @@ FILE* loge_set_fd(struct loge *ploge, int fd) {
     return prev;
   }
 
-#if defined(_MSC_VER)
-#define fdopen _fdopen
-#endif
-
   FILE *file = fdopen(fd, "w");
   if (!file) {
-    lgperror("fdopen failed");
+    lgperror(fdopen_str" failed");
     return prev;
   }
 
@@ -1135,14 +1146,6 @@ int loge_connect(struct loge *ploge, const char *host,
   if (sock == LOGE_SOCK_ERR) {
     return -1;
   }
-
-#ifdef _MSC_VER
-#define fdopen _fdopen
-#endif
-
-#define __xstr(s) __tostr(s)
-#define __tostr(s) #s
-#define fdopen_str __xstr(fdopen)
 
   FILE *file = fdopen(socket_to_native(sock), "w");
   if (!file) {
@@ -1695,8 +1698,10 @@ class loge {
    * p_os can be set as nullptr. User callbacks shall check it.
    */
   std::ostream *p_os = nullptr;
+
   FILE *p_sockfile = nullptr;
   socket_type sock = -1;
+
   std::array<char, constants::BUFFER_SIZE> buffer;
   std::size_t buflen{0};
 
@@ -2045,14 +2050,6 @@ class loge {
     if (sock == LOGE_SOCK_ERR) {
       return false;
     }
-
-#ifdef _MSC_VER
-#define fdopen _fdopen
-#endif
-
-#define __xstr(s) __tostr(s)
-#define __tostr(s) #s
-#define fdopen_str __xstr(fdopen)
 
     FILE *file = fdopen(socket_to_native(sock), "w");
     if (!file) {
