@@ -2026,7 +2026,7 @@ class loge {
   }
 
   void unset_logfn() {
-    logfnptr = &loge<timestamp>::logfn;
+    logfnptr = &loge<timestamp>::logfn_internal;
   }
 
   inline
