@@ -108,10 +108,12 @@ int main() {
   LOGE(&logger, LOGE_CRITICAL, "This should cause an error message");
 
   /* Log to an open file descriptor */
-#ifdef _MSC_VER
+#if defined(__linux__) || defined(__linux) || defined(__FreeBSD__) || defined(__OpenBSD__)
+  loge_set_fd(&logger, STDOUT_FILENO);
+#elif defined(_MSC_VER)
   loge_set_fd(&logger, _fileno(stdout));
 #else
-  loge_set_fd(&logger, STDOUT_FILENO);
+  loge_set_fd(&logger, fileno(stdout));
 #endif
   log_stuff();
 
@@ -121,6 +123,13 @@ int main() {
   log_stuff_nocolor();
 
   loge_set_level(&logger, LOGE_ALL);
+
+  /* Any logger can be used log to stdout or stderr */
+  loge_set_stdout(&logger);
+  log_stuff();
+
+  loge_set_stderr(&logger);
+  log_stuff_nocolor();
 
   /* Log using UDP */
 #if 1
@@ -146,6 +155,10 @@ int main() {
     loge_disconnect(&logger);
   }
 
+  /* Set the FILE pointer to NULL */
+  loge_unset_fileptr(&logger);
+  log_stuff(); // never gets logged
+
   /* Log using custom callback function with formatted log message */
   loge_set_stdout(&logger);
   loge_set_fn(&logger, mylogfn);
@@ -158,44 +171,87 @@ int main() {
 #if defined(__GLIBC__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 
   /* Log to syslog */
-  loge_set_syslog(&logger, LOG_NOTICE);
+  loge_set_syslog(&logger, LOG_USER | LOG_NOTICE);
   log_stuff_nocolor();
 
 #endif
 
   /* Use put functions */
+  loge_set_stderr(&logger);
 
   time_t t = time(NULL);
   struct tm tm = *localtime(&t);
-
-  loge_set_stderr(&logger);
+  const char *prefix = "test log: ";
 
   /* Reset message buffer */
   loge_reset(&logger);
 
-  loge_put_str(&logger, "hello ");
-  loge_put_time(&logger, &tm);
+  loge_put_str(&logger, prefix);
+  loge_put_str(&logger, "hello: ");
 
-  loge_put_char(&logger, ' ');
-
-  loge_put_int(&logger, 12);
+  loge_put_int(&logger, 121);
   loge_put_char(&logger, '-');
   loge_put_long(&logger, 2025L);
 
+  loge_put_str(&logger, " : ");
+
+  loge_set_width(&logger, NUMBER_WIDTH);
+  loge_put_int(&logger, 312);
+
+  loge_put_str(&logger, " : ");
+
+  loge_put_time(&logger, &tm);
+  loge_put_str(&logger, ": ");
+
+  loge_set_width(&logger, 6);
+  loge_put_int(&logger, 1970);
+
+  /* Flush message buffer */
+  loge_flush(&logger);
+
+  long l = 0xffffffffffffffff;
+  unsigned long u = 0xffffffffffffffff;
+  size_t s = 0xffffffffffffffff;
+
+  loge_put_str(&logger, "integers: ");
+  loge_set_width(&logger, 24);
+
   loge_put_char(&logger, ' ');
 
-  loge_set_width(&logger, 8);
-  loge_put_int(&logger, 312);
+  loge_put_long(&logger, l);
+
+  loge_put_char(&logger, ' ');
+
+  loge_put_ulong(&logger, u);
+
+  loge_put_char(&logger, ' ');
+
+#ifdef _MSC_VER
+  loge_put_ulong(&logger, s);
+#else
+  loge_put_uint(&logger, s);
+#endif
+
+  /* Flush message buffer */
+  loge_flush(&logger);
+
+  float f = 2747.33333333;
+  double d = 333.33333333;
+
+  loge_put_str(&logger, "fractions: ");
+
+  loge_set_width(&logger, -1);
+  loge_put_float(&logger, 312.3145926535);
 
   loge_put_char(&logger, ' ');
 
   loge_set_width(&logger, 12);
   loge_set_precision(&logger, 6);
-  loge_put_float(&logger, 2747.33333333);
+  loge_put_float(&logger, f);
 
   loge_put_char(&logger, ' ');
 
-  loge_put_double(&logger, 333.33333333);
+  loge_put_double(&logger, d);
 
   /* Flush message buffer */
   loge_flush(&logger);
