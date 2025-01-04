@@ -632,7 +632,7 @@ struct loge {
   char buffer[BUFFER_SIZE];
   size_t bufsize;
   size_t buflen;
-  log_fn plogfn;
+  log_fn plogfn, pprevlogfn;
   log_data_fn pdatafn;
   FILE *file;
   socket_type sockfd;
@@ -760,6 +760,7 @@ void loge_set_fn(struct loge *ploge, log_fn fn) {
     return;
   }
 
+  ploge->pprevlogfn = ploge->plogfn;
   ploge->plogfn = fn;
 }
 
@@ -802,6 +803,8 @@ FILE* loge_set_fd(struct loge *ploge, int fd) {
   }
 
   ploge->file = file;
+
+  ploge->pprevlogfn = ploge->plogfn;
   ploge->plogfn = &log_internal;
 
   return prev;
@@ -847,11 +850,11 @@ FILE* loge_set_stdout(struct loge *ploge) {
     return NULL;
   }
 
-  FILE *prev = ploge->file;
-
-  ploge->file = stdout;
+  ploge->pprevlogfn = ploge->plogfn;
   ploge->plogfn = &log_internal;
 
+  FILE *prev = ploge->file;
+  ploge->file = stdout;
   return prev;
 }
 
@@ -866,11 +869,11 @@ FILE* loge_set_stderr(struct loge *ploge) {
     return NULL;
   }
 
-  FILE *prev = ploge->file;
-
-  ploge->file = stderr;
+  ploge->pprevlogfn = ploge->plogfn;
   ploge->plogfn = &log_internal;
 
+  FILE *prev = ploge->file;
+  ploge->file = stderr;
   return prev;
 }
 
@@ -892,6 +895,8 @@ FILE* loge_set_syslog(struct loge *ploge, int priority) {
   ploge->pdatafn = NULL;
 
   ploge->syslog_priority = priority;
+
+  ploge->pprevlogfn = ploge->plogfn;
   ploge->plogfn = &log_syslog;
 
   return prev;
@@ -952,14 +957,15 @@ FILE* loge_set_file(struct loge *ploge, const char *filepath) {
 #endif
 
   ploge->file = file;
+
+  ploge->pprevlogfn = ploge->plogfn;
   ploge->plogfn = &log_internal;
 
   return prev; 
 }
 
 /**
- * @brief Close the output file stream and unset the callback function. User
- * needs to set the output stream and callback function afterwards.
+ * @brief Close the output file stream and restore the callback function.
  * @param ploge pointer to struct loge
  */
 static
@@ -971,8 +977,10 @@ void loge_unset_file(struct loge *ploge) {
   if (ploge->file != stdout && ploge->file != stderr) {
     fclose(ploge->file);
   }
+
   ploge->file = NULL;
-  ploge->plogfn = NULL;
+
+  ploge->plogfn = ploge->pprevlogfn;
 }
 
 /* glibc and BSD libc only */
@@ -1065,6 +1073,9 @@ void loge_setup(
     ploge->level = level;
   }
 
+  ploge->pprevlogfn = NULL;
+  ploge->plogfn = NULL;
+
   /* Set default stream as stdout and use default logger function */
   loge_set_stdout(ploge);
 
@@ -1074,6 +1085,7 @@ void loge_setup(
     ploge->file = file;
   }
 
+  /* loge_set_stdout() would have set pprevlogfn to NULL */
   if (fn != NULL) {
     ploge->plogfn = fn;
   }
@@ -1155,6 +1167,8 @@ int loge_connect(struct loge *ploge, const char *host,
   }
 
   ploge->sockfd = sock;
+
+  ploge->pprevlogfn = ploge->plogfn;
   ploge->plogfn = &log_internal;
 
   FILE *prev = loge_set_fileptr(ploge, file);
@@ -1191,6 +1205,8 @@ void loge_disconnect(struct loge *ploge) {
 
   ploge->file = NULL;
   ploge->sockfd = -1;
+
+  ploge->plogfn = ploge->pprevlogfn;
 }
 
 static
@@ -1822,7 +1838,8 @@ class loge {
       int width_ = -1,
       int precision_ = -1,
       enum loge_level level_ = loge_level::ERROR
-    ) : level(level_), logfnptr(&loge<timestamp>::logfn_internal) {
+    ) : level(level_), prevlogfnptr(nullptr),
+        logfnptr(&loge<timestamp>::logfn_internal) {
 
     if (linenumwidth_ > -1) {
       linenumwidth = linenumwidth_;
@@ -1881,12 +1898,18 @@ class loge {
   }
 
   std::ostream* set_stdout() {
+    prevlogfnptr = logfnptr;
+    logfnptr = &loge<timestamp>::logfn_internal;
+
     std::ostream *prev = p_os;
     p_os = &std::cout;
     return prev;
   }
 
   std::ostream* set_stderr() {
+    prevlogfnptr = logfnptr;
+    logfnptr = &loge<timestamp>::logfn_internal;
+
     std::ostream *prev = p_os;
     p_os = &std::cerr;
     return prev;
@@ -1897,6 +1920,8 @@ class loge {
 
   std::ostream* set_syslog(int priority) {
     syslog_priority = priority;
+
+    prevlogfnptr = logfnptr;
     logfnptr = &loge<timestamp>::logfn_syslog;
 
     return unset_ostream();
