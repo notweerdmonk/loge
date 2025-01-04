@@ -549,7 +549,7 @@ const char *loglevel_strtbl_color[] =  {
     if ((ploge) != NULL) \
       loge_log( \
           (struct loge*)(ploge), \
-          (level) & 0x7fffffff, \
+          (level) & ~LOGCOLOR, \
           __LINE__, \
           __FILE__, \
           __VA_ARGS__ \
@@ -561,7 +561,7 @@ const char *loglevel_strtbl_color[] =  {
     if ((ploge) != NULL) \
       loge_log( \
           (struct loge*)(ploge), \
-          (level) | 0x80000000, \
+          (level) | LOGCOLOR, \
           __LINE__, \
           __FILE__, \
           __VA_ARGS__ \
@@ -1553,7 +1553,7 @@ size_t loge_put_time(struct loge *ploge, struct tm *ptm) {
   do { \
     if ((ploge) != nullptr) \
       (ploge)->log( \
-          (level) & 0x7fffffff, \
+          (level) & ~loge<>::constants::LOGCOLOR, \
           __LINE__, \
           __FILE__, \
           __VA_ARGS__ \
@@ -1564,7 +1564,7 @@ size_t loge_put_time(struct loge *ploge, struct tm *ptm) {
   do { \
     if ((ploge) != nullptr) \
       (ploge)->log( \
-          (level) | 0x80000000, \
+          (level) | loge<>::constants::LOGCOLOR, \
           __LINE__, \
           __FILE__, \
           __VA_ARGS__ \
