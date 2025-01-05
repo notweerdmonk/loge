@@ -2075,7 +2075,7 @@ class loge {
     logfnptr = prevlogfnptr;
   }
 
-  void unset_logfn() {
+  void reset_logfn() {
     logfnptr = &loge<timestamp, buffer_size>::logfn_internal;
   }
 

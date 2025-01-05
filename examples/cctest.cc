@@ -137,7 +137,7 @@ int main() {
   }
 
   /* Set log callback function to default logging member function */
-  logger.unset_logfn();
+  logger.reset_logfn();
   /* Set the ostream pointer to nullptr */
   logger.unset_ostream();
   /* Never logged */
