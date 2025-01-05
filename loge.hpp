@@ -948,7 +948,7 @@ FILE* loge_set_file(struct loge *ploge, const char *filepath) {
 
 #else
 
-  file = fopen(filepath, "w");
+  file = fopen(filepath, "a");
   if (!file) {
     lgperror("fopen failed");
     return prev;
