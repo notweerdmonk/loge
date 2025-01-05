@@ -1596,7 +1596,10 @@ size_t loge_put_time(struct loge *ploge, struct tm *ptm) {
         ); \
   } while (0)
 
-template <bool timestamp = true>
+template <
+  bool timestamp = true,
+  std::size_t buffer_size = 0
+>
 class loge {
 
   public:
@@ -1619,8 +1622,6 @@ class loge {
   };
 
   private:
-
-  enum loge_level level;
 
   using width_type = struct _width_type {
     int width;
@@ -1704,13 +1705,15 @@ class loge {
     }
   };
 
+  enum loge_level level;
+
   width_type linenumwidth = constants::LINENUMBER_WIDTH;
   width_type width = -1;
   precision_type precision = -1;
 
-  using logfntype = void(loge<timestamp>::*)();
+  using logfntype = void(loge<timestamp, buffer_size>::*)();
   logfntype prevlogfnptr = nullptr;
-  logfntype logfnptr = &loge<timestamp>::logfn_internal;
+  logfntype logfnptr = &loge<timestamp, buffer_size>::logfn_internal;
 
   using endl_type = std::true_type;
 
@@ -1732,7 +1735,14 @@ class loge {
   FILE *p_sockfile = nullptr;
   socket_type sock = LOGE_SOCK_ERR;
 
-  std::array<char, constants::BUFFER_SIZE> buffer;
+  std::array<
+    char,
+    (
+      !buffer_size ?
+      static_cast<std::size_t>(constants::BUFFER_SIZE) :
+      buffer_size
+    )
+  > buffer;
   std::size_t buflen = 0;
 
   private:
@@ -1852,7 +1862,7 @@ class loge {
       int width_ = -1,
       int precision_ = -1,
       enum loge_level level_ = loge_level::INFO
-    ) : width(width_), precision(precision_), level(loge_level::INFO) {
+    ) : level(loge_level::INFO), width(width_), precision(precision_) {
 
     if (linenumwidth_ > -1) {
       linenumwidth = linenumwidth_;
@@ -1914,7 +1924,7 @@ class loge {
 
   std::ostream* set_stdout() {
     prevlogfnptr = logfnptr;
-    logfnptr = &loge<timestamp>::logfn_internal;
+    logfnptr = &loge<timestamp, buffer_size>::logfn_internal;
 
     std::ostream *prev = p_os;
     p_os = &std::cout;
@@ -1923,7 +1933,7 @@ class loge {
 
   std::ostream* set_stderr() {
     prevlogfnptr = logfnptr;
-    logfnptr = &loge<timestamp>::logfn_internal;
+    logfnptr = &loge<timestamp, buffer_size>::logfn_internal;
 
     std::ostream *prev = p_os;
     p_os = &std::cerr;
@@ -1937,7 +1947,7 @@ class loge {
     syslog_priority = priority;
 
     prevlogfnptr = logfnptr;
-    logfnptr = &loge<timestamp>::logfn_syslog;
+    logfnptr = &loge<timestamp, buffer_size>::logfn_syslog;
 
     return unset_ostream();
   }
@@ -1966,7 +1976,7 @@ class loge {
     p_os = p_ofs;
 
     prevlogfnptr = logfnptr;
-    logfnptr = &loge<timestamp>::logfn_internal;
+    logfnptr = &loge<timestamp, buffer_size>::logfn_internal;
 
     return prev;
   }
@@ -2007,7 +2017,7 @@ class loge {
     p_os = p_ofs;
 
     prevlogfnptr = logfnptr;
-    logfnptr = &loge<timestamp>::logfn_internal;
+    logfnptr = &loge<timestamp, buffer_size>::logfn_internal;
 
     return prev;
   }
@@ -2047,7 +2057,7 @@ class loge {
     p_os = p_ofs;
 
     prevlogfnptr = logfnptr;
-    logfnptr = &loge<timestamp>::logfn_internal;
+    logfnptr = &loge<timestamp, buffer_size>::logfn_internal;
 
     return prev;
   }
@@ -2066,7 +2076,7 @@ class loge {
   }
 
   void unset_logfn() {
-    logfnptr = &loge<timestamp>::logfn_internal;
+    logfnptr = &loge<timestamp, buffer_size>::logfn_internal;
   }
 
   inline
@@ -2102,7 +2112,7 @@ class loge {
     p_sockfile = file;
 
     prevlogfnptr = logfnptr;
-    logfnptr = &loge<timestamp>::logfn_fileptr;
+    logfnptr = &loge<timestamp, buffer_size>::logfn_fileptr;
 
     std::ostream *prev_os = unset_ostream();
     if (prev) {
@@ -2208,7 +2218,7 @@ class loge {
     }
   }
 
-  loge<timestamp>& operator<<(const loge<timestamp> &other) {
+  loge<timestamp, buffer_size>& operator<<(const loge<timestamp, buffer_size> &other) {
     if (this != &other) {
       this->level = other.level;
       this->linenumwidth = other.linenumwidth;
@@ -2224,7 +2234,7 @@ class loge {
     return *this;
   }
 
-  loge<timestamp>& operator<<(const char *pstr) {
+  loge<timestamp, buffer_size>& operator<<(const char *pstr) {
     if (!pstr) {
       return *this;
     }
@@ -2246,22 +2256,22 @@ class loge {
     return *this;
   }
 
-  loge<timestamp>& operator<<(const std::string &str) {
+  loge<timestamp, buffer_size>& operator<<(const std::string &str) {
     return this->operator<<(str.c_str());
   }
 
-  loge<timestamp>& operator<<(char c) {
+  loge<timestamp, buffer_size>& operator<<(char c) {
     if (buflen < buffer.size()) {
       buffer[buflen++] = c;
     }
     return *this;
   }
 
-  loge<timestamp>& operator<<(unsigned char c) {
+  loge<timestamp, buffer_size>& operator<<(unsigned char c) {
     return this->operator<<(static_cast<char>(c));
   }
 
-  loge<timestamp>& operator<<(short n) {
+  loge<timestamp, buffer_size>& operator<<(short n) {
     int widthval = static_cast<int>(width);
     int len = snprintf(buffer.data() + buflen, buffer.size() - buflen,
         widthval > -1 ? "%0*hd" : "%hd",
@@ -2272,7 +2282,7 @@ class loge {
     return *this;
   }
 
-  loge<timestamp>& operator<<(unsigned short n) {
+  loge<timestamp, buffer_size>& operator<<(unsigned short n) {
     int widthval = static_cast<int>(width);
     int len = snprintf(buffer.data() + buflen, buffer.size() - buflen,
         widthval > -1 ? "%0*hu" : "%hu",
@@ -2283,7 +2293,7 @@ class loge {
     return *this;
   }
 
-  loge<timestamp>& operator<<(int n) {
+  loge<timestamp, buffer_size>& operator<<(int n) {
     int widthval = static_cast<int>(width);
     int len = snprintf(buffer.data() + buflen, buffer.size() - buflen,
         widthval > -1 ? "%0*d" : "%d",
@@ -2294,7 +2304,7 @@ class loge {
     return *this;
   }
 
-  loge<timestamp>& operator<<(unsigned int n) {
+  loge<timestamp, buffer_size>& operator<<(unsigned int n) {
     int widthval = static_cast<int>(width);
     int len = snprintf(buffer.data() + buflen, buffer.size() - buflen,
         widthval > -1 ? "%0*u" : "%u",
@@ -2305,7 +2315,7 @@ class loge {
     return *this;
   }
 
-  loge<timestamp>& operator<<(long n) {
+  loge<timestamp, buffer_size>& operator<<(long n) {
     int widthval = static_cast<int>(width);
     int len = 0;
     if (widthval > -1) {
@@ -2322,7 +2332,7 @@ class loge {
     return *this;
   }
 
-  loge<timestamp>& operator<<(long long n) {
+  loge<timestamp, buffer_size>& operator<<(long long n) {
     int widthval = static_cast<int>(width);
     int len = 0;
     if (widthval > -1) {
@@ -2339,7 +2349,7 @@ class loge {
     return *this;
   }
 
-  loge<timestamp>& operator<<(unsigned long n) {
+  loge<timestamp, buffer_size>& operator<<(unsigned long n) {
     int widthval = static_cast<int>(width);
     int len = 0;
     if (widthval > -1) {
@@ -2356,7 +2366,7 @@ class loge {
     return *this;
   }
 
-  loge<timestamp>& operator<<(unsigned long long n) {
+  loge<timestamp, buffer_size>& operator<<(unsigned long long n) {
     int widthval = static_cast<int>(width);
     int len = 0;
     if (widthval > -1) {
@@ -2373,7 +2383,7 @@ class loge {
     return *this;
   }
 
-  loge<timestamp>& operator<<(float f) {
+  loge<timestamp, buffer_size>& operator<<(float f) {
     int widthval = static_cast<int>(width);
     int precisionval = static_cast<int>(precision);
     int len = 0;
@@ -2403,7 +2413,7 @@ class loge {
     return *this;
   }
 
-  loge<timestamp>& operator<<(double f) {
+  loge<timestamp, buffer_size>& operator<<(double f) {
     int widthval = static_cast<int>(width);
     int precisionval = static_cast<int>(precision);
     int len = 0;
@@ -2435,7 +2445,7 @@ class loge {
 
 #if __cplusplus >= 201703L
 
-  loge<timestamp>& operator<<(struct tm &localtm) {
+  loge<timestamp, buffer_size>& operator<<(struct tm &localtm) {
     if constexpr (timestamp) {
       int len = snprintf(buffer.data() + buflen, buffer.size() - buflen,
           "%02d-%02d-%04d:%02d:%02d:%02d",
@@ -2476,7 +2486,7 @@ class loge {
 #endif
   }
 
-  loge<timestamp>& operator<<(struct tm &localtm) {
+  loge<timestamp, buffer_size>& operator<<(struct tm &localtm) {
     insert_tm(localtm);
     return *this;
   }
@@ -2498,7 +2508,7 @@ class loge {
     return width_type(width);
   }
 
-  loge<timestamp>& operator<<(width_type width_) {
+  loge<timestamp, buffer_size>& operator<<(width_type width_) {
     width = width_;
     return *this;
   }
@@ -2513,7 +2523,7 @@ class loge {
     return precision_type(precision_);
   }
 
-  loge<timestamp>& operator<<(precision_type precision_) {
+  loge<timestamp, buffer_size>& operator<<(precision_type precision_) {
     precision = precision_;
     return *this;
   }
@@ -2521,7 +2531,7 @@ class loge {
   static
   constexpr const endl_type endl = endl_type();
 
-  loge<timestamp>& operator<<(endl_type endl) {
+  loge<timestamp, buffer_size>& operator<<(endl_type endl) {
     flush();
     return *this;
   }

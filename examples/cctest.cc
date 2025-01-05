@@ -193,7 +193,7 @@ int main() {
 #endif
 
   /* Demo for insertion operator */
-  loge<true> log(&std::cerr);
+  loge<false, 512> log(&std::cerr);
 
   std::time_t t = std::time(nullptr);
   struct tm tm = *std::localtime(&t);
