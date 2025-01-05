@@ -1055,6 +1055,8 @@ void loge_setup(
     ploge->bufsize = max_log_size * sizeof(char);
   }
 
+  ploge->buflen = 0;
+
   ploge->linenumwidth = LINENUMBER_WIDTH;
   if (linenumwidth > -1) {
     ploge->linenumwidth = linenumwidth;
@@ -1069,17 +1071,20 @@ void loge_setup(
     ploge->precision = precision;
   }
 
+  ploge->level = LOGE_INFO;
   if (level < LOGE_MAX) {
     ploge->level = level;
   }
+
+  ploge->sockfd = -1;
+
+  ploge->file = NULL;
 
   ploge->pprevlogfn = NULL;
   ploge->plogfn = NULL;
 
   /* Set default stream as stdout and use default logger function */
   loge_set_stdout(ploge);
-
-  ploge->sockfd = -1;
 
   if (file != NULL) {
     ploge->file = file;
@@ -1090,7 +1095,7 @@ void loge_setup(
     ploge->plogfn = fn;
   }
 
-  ploge->syslog_priority = LOGE_INFO;
+  ploge->syslog_priority = LOG_USER | LOG_INFO;
 }
 
 static
@@ -1695,16 +1700,17 @@ class loge {
     }
   };
 
-  width_type linenumwidth{constants::LINENUMBER_WIDTH};
-  width_type width{-1};
-  precision_type precision{-1};
+  width_type linenumwidth = constants::LINENUMBER_WIDTH;
+  width_type width = -1;
+  precision_type precision = -1;
 
   using logfntype = void(loge<timestamp>::*)();
-  logfntype prevlogfnptr, logfnptr;
+  logfntype prevlogfnptr = nullptr;
+  logfntype logfnptr = &loge<timestamp>::logfn_internal;
 
   using endl_type = std::true_type;
 
-  int syslog_priority;
+  int syslog_priority = LOG_USER | LOG_INFO;
 
   protected:
 
@@ -1716,10 +1722,10 @@ class loge {
   std::ostream *p_os = nullptr;
 
   FILE *p_sockfile = nullptr;
-  socket_type sock = -1;
+  socket_type sock = LOGE_SOCK_ERR;
 
   std::array<char, constants::BUFFER_SIZE> buffer;
-  std::size_t buflen{0};
+  std::size_t buflen = 0;
 
   private:
 
@@ -1817,7 +1823,7 @@ class loge {
   public:
 
   loge(enum loge_level loglevel = loge_level::ERROR)
-    : loge(nullptr, constants::LINENUMBER_WIDTH, -1, -1, loglevel) {
+    : loge(nullptr, -1, -1, -1, loglevel) {
   }
 
   loge(std::ostream &os_, enum loge_level loglevel = loge_level::ERROR)
@@ -1834,21 +1840,22 @@ class loge {
 
   loge(
       std::ostream *p_os_,
-      int linenumwidth_ = constants::LINENUMBER_WIDTH,
+      int linenumwidth_ = -1,
       int width_ = -1,
       int precision_ = -1,
-      enum loge_level level_ = loge_level::ERROR
-    ) : level(level_), prevlogfnptr(nullptr),
-        logfnptr(&loge<timestamp>::logfn_internal) {
+      enum loge_level level_ = loge_level::INFO
+    ) : width(width_), precision(precision_), level(loge_level::INFO) {
 
     if (linenumwidth_ > -1) {
       linenumwidth = linenumwidth_;
     }
 
-    width = width_;
-    precision = precision_;
+    if (level_ < loge_level::MAX) {
+      level = level_;
+    }
 
     set_stdout();
+
     if (p_os_) {
       p_os = p_os_;
     }
