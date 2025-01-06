@@ -1220,11 +1220,19 @@ void loge_disconnect(struct loge *ploge) {
 
 static
 void loge_reset(struct loge *ploge) {
+  if (!ploge) {
+    return;
+  }
+
   ploge->buflen = 0;
 }
 
 static
 void loge_flush(struct loge *ploge) {
+  if (!ploge) {
+    return;
+  }
+
   ploge->plogfn(ploge);
   loge_reset(ploge);
 }
