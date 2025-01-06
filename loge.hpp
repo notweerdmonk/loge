@@ -1219,6 +1219,16 @@ void loge_disconnect(struct loge *ploge) {
 }
 
 static
+void loge_reset_logfn(struct loge *ploge) {
+  if (!ploge) {
+    return;
+  }
+
+  ploge->pprevlogfn = ploge->plogfn;
+  ploge->plogfn = &log_internal;
+}
+
+static
 void loge_reset(struct loge *ploge) {
   if (!ploge) {
     return;
@@ -2084,6 +2094,7 @@ class loge {
   }
 
   void reset_logfn() {
+    prevlogfnptr = logfnptr;
     logfnptr = &loge<timestamp, buffer_size>::logfn_internal;
   }
 
