@@ -193,7 +193,7 @@ int main() {
 #endif
 
   /* Demo for insertion operator */
-  loge<false, 512> log(&std::cerr);
+  loge<true, 512> log(&std::cerr);
 
   std::time_t t = std::time(nullptr);
   struct tm tm = *std::localtime(&t);
@@ -208,7 +208,11 @@ int main() {
     << tm << ": " << loge<>::setw(6) << 1970 << loge<>::endl;
 
   long l = 0xffffffffffffffff;
+#ifdef _MSC_VER
+  unsigned long long u = 0xffffffffffffffff;
+#else
   unsigned long u = 0xffffffffffffffff;
+#endif
   std::size_t s = 0xffffffffffffffff;
   log << "integers: " << loge<>::setw(24) << ' ' << l << ' ' << u << ' ' << s;
   /* Write message to ostream */
