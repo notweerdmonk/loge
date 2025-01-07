@@ -116,6 +116,7 @@ int main() {
   loge_set_fd(&logger, fileno(stdout));
 #endif
   log_stuff();
+  loge_unset_fd(&logger);
 
   /* Filter log messages based on importance level */
   loge_set_level(&logger, LOGE_WARNING);

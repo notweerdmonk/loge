@@ -810,6 +810,21 @@ FILE* loge_set_fd(struct loge *ploge, int fd) {
   return prev;
 }
 
+static
+void loge_unset_fd(struct loge *ploge) {
+  if (!ploge) {
+    return;
+  }
+
+  if (ploge->file != stdout && ploge->file != stderr) {
+    fclose(ploge->file);
+  }
+
+  ploge->file = NULL;
+
+  ploge->plogfn = ploge->pprevlogfn;
+}
+
 /**
  * @brief Set the stream to which log messages will be written.
  * @param ploge Pointer to struct loge
