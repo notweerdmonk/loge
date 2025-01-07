@@ -155,6 +155,8 @@ int main() {
     loge_disconnect(&logger);
   }
 
+  /* Set log callback function to default logging function */
+  loge_reset_logfn(&logger);
   /* Set the FILE pointer to NULL */
   loge_unset_fileptr(&logger);
   log_stuff(); // never gets logged
