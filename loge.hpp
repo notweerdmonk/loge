@@ -2045,6 +2045,7 @@ class loge {
     }
 
     if (p_os != &std::cout && p_os != &std::cerr) {
+      delete p_os->rdbuf();
       delete p_os;
     }
     p_os = nullptr;
@@ -2086,7 +2087,6 @@ class loge {
     }
 
     if (p_os != &std::cout && p_os != &std::cerr) {
-      //dynamic_cast<std::ofstream*>(p_os)->close();
       delete p_os;
     }
     p_os = nullptr;
