@@ -1276,7 +1276,12 @@ void loge_flush(struct loge *ploge) {
     return;
   }
 
-  ploge->plogfn(ploge);
+  if (ploge->plogfn) {
+    ploge->plogfn(ploge);
+  } else {
+    lgerror("log callback not set for logger %p", ploge);
+  }
+
   loge_reset(ploge);
 }
 
