@@ -186,10 +186,20 @@
 /* Adjustment for fdopen */
 #if defined(_MSC_VER)
 
+#ifdef dup
+#undef dup
+#endif
+#define dup _dup
+
 #ifdef fdopen
 #undef fdopen
 #endif
 #define fdopen _fdopen
+
+#ifdef close
+#undef close
+#endif
+#define close _close
 
 #elif !defined(_POSIX_C_SOURCE) && !defined(_MSC_VER)
 
@@ -198,7 +208,9 @@ extern FILE *fdopen(int fd, const char *mode);
 
 #endif
 
+#define dup_str __xstr(dup)
 #define fdopen_str __xstr(fdopen)
+#define close_str __xstr(close)
 
 
 #ifdef __cplusplus
@@ -796,9 +808,15 @@ FILE* loge_set_fd(struct loge *ploge, int fd) {
     return prev;
   }
 
-  FILE *file = fdopen(fd, "w");
+  int newfd = dup(fd);
+  if (newfd < 0) {
+    lgperror(dup_str" failed");
+    return prev;
+  }
+  FILE *file = fdopen(newfd, "w");
   if (!file) {
     lgperror(fdopen_str" failed");
+    close(newfd);
     return prev;
   }
 
@@ -1998,11 +2016,18 @@ class loge {
       return prev;
     }
 
+    int newfd = dup(fd);
+    if (newfd < 0) {
+      lgperror("dup failed");
+      return prev;
+    }
+
     using filebuf_type = __gnu_cxx::stdio_filebuf<char>;
-     filebuf_type *p_fb = new filebuf_type(fd, std::ios::out);
+    filebuf_type *p_fb = new filebuf_type(newfd, std::ios::out);
 
     std::ostream *p_ofs = new std::ostream(p_fb);
     if (!p_ofs) {
+      close(newfd);
       return prev;
     }
 
