@@ -243,7 +243,7 @@ int main() {
 
   loge_put_str(&logger, "fractions: ");
 
-  loge_set_width(&logger, -1);
+  loge_set_default_width(&logger);
   loge_put_float(&logger, 312.3145926535);
 
   loge_put_char(&logger, ' ');

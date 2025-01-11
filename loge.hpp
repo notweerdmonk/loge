@@ -1136,6 +1136,15 @@ void loge_setup(
 }
 
 static
+void loge_set_default_width(struct loge *ploge) {
+  if (!ploge) {
+    return;
+  }
+
+  ploge->width = -1;
+}
+
+static
 void loge_set_width(struct loge *ploge, int width) {
   if (!ploge) {
     return;
