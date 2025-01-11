@@ -642,7 +642,7 @@ typedef void (*log_data_fn)(
 struct loge {
   char *bufptr;
   char buffer[BUFFER_SIZE];
-  size_t bufsize;
+  size_t bufcap;
   size_t buflen;
   log_fn plogfn, pprevlogfn;
   log_data_fn pdatafn;
@@ -1073,7 +1073,7 @@ void loge_setup(
   }
 
   ploge->bufptr = ploge->buffer;
-  ploge->bufsize = BUFFER_SIZE * sizeof(char);
+  ploge->bufcap = BUFFER_SIZE * sizeof(char);
 
   if (max_log_size > BUFFER_SIZE) {
     char *mem = (char*)malloc(max_log_size * sizeof(char));
@@ -1085,7 +1085,7 @@ void loge_setup(
     }
 
     ploge->bufptr = mem;
-    ploge->bufsize = max_log_size * sizeof(char);
+    ploge->bufcap = max_log_size * sizeof(char);
   }
 
   ploge->buflen = 0;
@@ -1355,7 +1355,7 @@ void loge_log(
 
   if (!ploge->pdatafn) {
     len = snprintf(
-        ploge->bufptr, ploge->bufsize,
+        ploge->bufptr, ploge->bufcap,
         "%02d-%02d-%04d:%02d:%02d:%02d: %s:%0*d: %-*s: ",
         localtm.tm_mon + 1, localtm.tm_mday, localtm.tm_year + 1900,
         localtm.tm_hour, localtm.tm_min, localtm.tm_sec,
@@ -1368,7 +1368,7 @@ void loge_log(
   va_list args;
   va_start(args, msg);
 
-  len += vsnprintf(ploge->bufptr + len, ploge->bufsize - len, msg, args);
+  len += vsnprintf(ploge->bufptr + len, ploge->bufcap - len, msg, args);
 
   va_end(args);
 
@@ -1398,7 +1398,7 @@ size_t loge_put_char(struct loge *ploge, char c) {
     return 0;
   }
 
-  if (ploge->buflen < ploge->bufsize) {
+  if (ploge->buflen < ploge->bufcap) {
     ploge->bufptr[ploge->buflen++] = c;
   }
 
@@ -1412,7 +1412,7 @@ size_t loge_put_str(struct loge *ploge, const char *pstr) {
   }
 
   size_t ncopy = strlen(pstr);
-  size_t maxcopy = ploge->bufsize - ploge->buflen - 1;
+  size_t maxcopy = ploge->bufcap - ploge->buflen - 1;
 
   if (ncopy > maxcopy) {
     ncopy = maxcopy;
@@ -1437,12 +1437,12 @@ size_t loge_put_int(struct loge *ploge, int n) {
   int len = 0;
   if (ploge->width > -1) {
     len = snprintf(ploge->bufptr + ploge->buflen,
-        ploge->bufsize - ploge->buflen,
+        ploge->bufcap - ploge->buflen,
         "%0*d", ploge->width, n);
 
   } else {
     len = snprintf(ploge->bufptr + ploge->buflen,
-        ploge->bufsize - ploge->buflen, "%d", n);
+        ploge->bufcap - ploge->buflen, "%d", n);
   }
 
   ploge->buflen += len;
@@ -1462,12 +1462,12 @@ size_t loge_put_uint(struct loge *ploge, unsigned int n) {
   int len = 0;
   if (ploge->width > -1) {
     len = snprintf(ploge->bufptr + ploge->buflen,
-        ploge->bufsize - ploge->buflen,
+        ploge->bufcap - ploge->buflen,
         "%0*u", ploge->width, n);
 
   } else {
     len = snprintf(ploge->bufptr + ploge->buflen,
-        ploge->bufsize - ploge->buflen, "%u", n);
+        ploge->bufcap - ploge->buflen, "%u", n);
   }
 
   ploge->buflen += len;
@@ -1487,12 +1487,12 @@ size_t loge_put_long(struct loge *ploge, long n) {
   int len = 0;
   if (ploge->width > -1) {
     len = snprintf(ploge->bufptr + ploge->buflen,
-        ploge->bufsize - ploge->buflen,
+        ploge->bufcap - ploge->buflen,
         "%0*ld", ploge->width, n);
 
   } else {
     len = snprintf(ploge->bufptr + ploge->buflen,
-        ploge->bufsize - ploge->buflen, "%ld", n);
+        ploge->bufcap - ploge->buflen, "%ld", n);
   }
 
   ploge->buflen += len;
@@ -1512,12 +1512,12 @@ size_t loge_put_ulong(struct loge *ploge, unsigned long n) {
   int len = 0;
   if (ploge->width > -1) {
     len = snprintf(ploge->bufptr + ploge->buflen,
-        ploge->bufsize - ploge->buflen,
+        ploge->bufcap - ploge->buflen,
         "%0*lu", ploge->width, n);
 
   } else {
     len = snprintf(ploge->bufptr + ploge->buflen,
-        ploge->bufsize - ploge->buflen, "%lu", n);
+        ploge->bufcap - ploge->buflen, "%lu", n);
   }
 
   ploge->buflen += len;
@@ -1537,12 +1537,12 @@ size_t loge_put_float(struct loge *ploge, float f) {
   int len = 0;
   if (ploge->width > -1) {
     len = snprintf(ploge->bufptr + ploge->buflen,
-        ploge->bufsize - ploge->buflen,
+        ploge->bufcap - ploge->buflen,
         "%#0*.*f", ploge->width, ploge->precision, f);
 
   } else {
     len = snprintf(ploge->bufptr + ploge->buflen,
-        ploge->bufsize - ploge->buflen,
+        ploge->bufcap - ploge->buflen,
         "%#f", f);
   }
 
@@ -1563,12 +1563,12 @@ size_t loge_put_double(struct loge *ploge, double f) {
   int len = 0;
   if (ploge->width > -1) {
     len = snprintf(ploge->bufptr + ploge->buflen,
-        ploge->bufsize - ploge->buflen,
+        ploge->bufcap - ploge->buflen,
         "%0#*.*f", ploge->width, ploge->precision, f);
 
   } else {
     len = snprintf(ploge->bufptr + ploge->buflen,
-        ploge->bufsize - ploge->buflen,
+        ploge->bufcap - ploge->buflen,
         "%#f", f);
   }
 
@@ -1587,7 +1587,7 @@ size_t loge_put_time(struct loge *ploge, struct tm *ptm) {
   }
 
   int len = snprintf(ploge->bufptr + ploge->buflen,
-      ploge->bufsize - ploge->buflen,
+      ploge->bufcap - ploge->buflen,
       "%02d-%02d-%04d:%02d:%02d:%02d",
       ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_year + 1900,
       ptm->tm_hour, ptm->tm_min, ptm->tm_sec
@@ -1809,10 +1809,10 @@ class loge {
     bool timestamp_ = timestamp,
     typename std::enable_if<timestamp_, int>::type = 0
   >
-  int make_prefix(char *buffer, std::size_t bufsize, struct tm *ptm, bool color,
+  int make_prefix(char *buffer, std::size_t bufcap, struct tm *ptm, bool color,
       const char *filename, int linenumber, const char *loglvlstr) {
 
-    return snprintf(buffer, bufsize,
+    return snprintf(buffer, bufcap,
         "%02d-%02d-%04d:%02d:%02d:%02d: %s:%0*d: %-*s: ",
         ptm->tm_mon + 1,
         ptm->tm_mday,
@@ -1833,15 +1833,15 @@ class loge {
     typename std::enable_if<!timestamp_, int>::type = 0
   >
 #ifndef _MSC_VER
-  int make_prefix(char *buffer, std::size_t bufsize,
+  int make_prefix(char *buffer, std::size_t bufcap,
       struct tm *ptm __attribute__((unused)),
 #else
-  int make_prefix(char *buffer, std::size_t bufsize, struct tm *ptm,
+  int make_prefix(char *buffer, std::size_t bufcap, struct tm *ptm,
 #endif
       bool color, const char *filename, int linenumber,
       const char *loglvlstr) {
 
-    return snprintf(buffer, bufsize,
+    return snprintf(buffer, bufcap,
         "%s:%0*d: %-*s: ",
         filename,
         static_cast<int>(linenumwidth),
