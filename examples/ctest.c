@@ -65,7 +65,8 @@ void mydatafn(
 
 void log_stuff() {
   LOGE_COLOR(&logger, LOGE_DEBUG, "Address of logger: %p", &logger);
-  LOGE_COLOR(&logger, LOGE_INFO, "Logger is set at level: %d", logger.level);
+  LOGE_COLOR(&logger, LOGE_INFO, "Logger is set at level: %d",
+      LOGE_LEVEL(logger.log_type));
   LOGE_COLOR(&logger, LOGE_WARNING, "Dereference pointers with care");
   LOGE_COLOR(&logger, LOGE_ERROR, "Logger buffer size: %zu", logger.buflen);
   LOGE_COLOR(&logger, LOGE_CRITICAL, "Thanks for using logger");
@@ -73,7 +74,8 @@ void log_stuff() {
 
 void log_stuff_nocolor() {
   LOGE(&logger, LOGE_DEBUG, "Address of logger: %p", &logger);
-  LOGE(&logger, LOGE_INFO, "Logger is set at level: %d", logger.level);
+  LOGE(&logger, LOGE_INFO, "Logger is set at level: %d",
+      LOGE_LEVEL(logger.log_type));
   LOGE(&logger, LOGE_WARNING, "Dereference pointers with care");
   LOGE(&logger, LOGE_ERROR, "Logger buffer size: %zu", logger.buflen);
   LOGE(&logger, LOGE_CRITICAL, "Thanks for using logger");
@@ -86,14 +88,14 @@ int main() {
    * LOGE_ALL level, stdout stream and default callback function
    */
   loge_setup(
-      &logger,      /* struct loge *ploge */
-      2048,         /* size_t max_log_size */
-      -1,           /* int linenumwidth */
-      -1,           /* int wdith */
-      -1,           /* int precision */
-      LOGE_ALL,     /* enum loge_level level */
-      NULL,         /* FILE *file */
-      NULL          /* log_fn fn */
+      &logger,                  /* struct loge *ploge */
+      2048,                     /* size_t max_log_size */
+      -1,                       /* int linenumwidth */
+      -1,                       /* int wdith */
+      -1,                       /* int precision */
+      LOGE_TYPE(1, LOGE_ALL),   /* int log_type */
+      NULL,                     /* FILE *file */
+      NULL                      /* log_fn fn */
     );
 
   log_stuff();

@@ -527,6 +527,7 @@ error:
 
 static
 const char *loglevel_strtbl[] =  {
+  "",
   "DEBUG",
   "INFO",
   "WARNING",
@@ -536,6 +537,7 @@ const char *loglevel_strtbl[] =  {
 
 static
 const char *loglevel_strtbl_color[] =  {
+  "",
   ANSI_FG_BLUE   ANSI_BG_RESET "DEBUG"    ANSI_RESET,
   ANSI_FG_GREEN  ANSI_BG_RESET "INFO"     ANSI_RESET,
   ANSI_FG_YELLOW ANSI_BG_RESET "WARNING"  ANSI_RESET,
@@ -580,11 +582,21 @@ const char *loglevel_strtbl_color[] =  {
         ); \
   } while (0)
 
+#define LOGE_TYPE(entime, level) \
+  (int)( ( (!!(entime)) << 31 ) | (level) )
+
+#define LOGE_ENTIME(type) \
+  (int)(!!(type & LOGTIMESTAMP))
+
+#define LOGE_LEVEL(type) \
+  (enum loge_level)(type & ~LOGTIMESTAMP)
+
 enum loge_constants {
   LINENUMBER_WIDTH = 6,
   NUMBER_WIDTH = 8,
   BUFFER_SIZE = 1024,
-  LOGCOLOR = 0x80000000
+  LOGCOLOR = 0x80000000,
+  LOGTIMESTAMP = 0x80000000
 };
 
 /**
@@ -595,7 +607,7 @@ enum loge_constants {
  * type/level less that the specified type/level will not get logged.
  */
 enum loge_level {
-  LOGE_ALL = -1,  /**< Everything */
+  LOGE_ALL = 0,  /**< Everything */
   LOGE_DEBUG,     /**< Debug information */
   LOGE_INFO,      /**< Run time information like statuses, user output, etc */
   LOGE_WARNING,   /**< Warnings */
@@ -648,7 +660,7 @@ struct loge {
   log_data_fn pdatafn;
   FILE *file;
   socket_type sockfd;
-  enum loge_level level;
+  int log_type;
   int linenumwidth;
   int width;
   int precision;
@@ -744,8 +756,10 @@ void loge_set_level(struct loge *ploge, enum loge_level level) {
     return;
   }
 
+  int en_timestamp = LOGE_ENTIME(ploge->log_type);
+
   if (level < LOGE_MAX) {
-    ploge->level = level;
+    ploge->log_type = LOGE_TYPE(en_timestamp, level);
   }
 }
 
@@ -1047,14 +1061,15 @@ int loge_syslog_priority(struct loge *ploge) {
  * left with zeroes). Defaults to `NUMBER_WIDTH` if 0 is passed.
  * @param width Width for integers and integral part of decimal numbers.
  * @param precision Precision for fractional part of decimal numbers.
- * @param level Log type/level to be filtered. Messages below this level will
- * not be logged.
- * @param file Output stream to write log messages to. Defaults to stdout if NULL
- * is passed.
+ * @param logtype Type of log, bitmask of enum loge_level OR'd with 0x80000000
+ * if timestamp is to be logged. Messages below this level will not be logged.
+ * @param file Output stream to write log messages to. Defaults to stdout if
+ * NULL * is passed.
  * @param fn Callback function used for writing log messages to output
  * steam. Default callback function will be set if NULL is passed.
  *
  * @see log_fn
+ * @see LOGE_TYPE
  */
 static
 void loge_setup(
@@ -1063,7 +1078,7 @@ void loge_setup(
     int linenumwidth,
     int width,
     int precision,
-    enum loge_level level,
+    int log_type,
     FILE *file,
     log_fn fn
   ) {
@@ -1104,9 +1119,12 @@ void loge_setup(
     ploge->precision = precision;
   }
 
-  ploge->level = LOGE_INFO;
+  int en_timestamp = LOGE_ENTIME(log_type);
+  enum loge_level level = LOGE_LEVEL(log_type);
+
+  ploge->log_type = LOGE_TYPE(en_timestamp, LOGE_INFO);
   if (level < LOGE_MAX) {
-    ploge->level = level;
+    ploge->log_type = LOGE_TYPE(en_timestamp, level);
   }
 
   ploge->sockfd = -1;
@@ -1348,9 +1366,10 @@ void loge_log(
   }
 
   enum loge_level loglevel = (enum loge_level)(logtype & ~LOGCOLOR);
+  enum loge_level mylevel = LOGE_LEVEL(ploge->log_type);
 
   if (loglevel >= LOGE_MAX ||
-      loglevel < ploge->level) {
+      loglevel < mylevel) {
     return;
   }
 
@@ -1363,15 +1382,28 @@ void loge_log(
   int len = 0;
 
   if (!ploge->pdatafn) {
-    len = snprintf(
-        ploge->bufptr, ploge->bufcap,
-        "%02d-%02d-%04d:%02d:%02d:%02d: %s:%0*d: %-*s: ",
-        localtm.tm_mon + 1, localtm.tm_mday, localtm.tm_year + 1900,
-        localtm.tm_hour, localtm.tm_min, localtm.tm_sec,
-        filename,
-        ploge->linenumwidth, linenum,
-        color ? 22 : 8, loglvl_tbl
-      );
+    int en_timestamp = LOGE_ENTIME(ploge->log_type);
+
+    if (en_timestamp) {
+      len = snprintf(
+          ploge->bufptr, ploge->bufcap,
+          "%02d-%02d-%04d:%02d:%02d:%02d: %s:%0*d: %-*s: ",
+          localtm.tm_mon + 1, localtm.tm_mday, localtm.tm_year + 1900,
+          localtm.tm_hour, localtm.tm_min, localtm.tm_sec,
+          filename,
+          ploge->linenumwidth, linenum,
+          color ? 22 : 8, loglvl_tbl
+        );
+
+    } else {
+      len = snprintf(
+          ploge->bufptr, ploge->bufcap,
+          "%s:%0*d: %-*s: ",
+          filename,
+          ploge->linenumwidth, linenum,
+          color ? 22 : 8, loglvl_tbl
+        );
+    }
   }
 
   va_list args;
@@ -1677,7 +1709,7 @@ class loge {
   };
 
   enum loge_level {
-    ALL = -1,
+    ALL = 0,
     INFO,
     DEBUG,
     WARNING,
