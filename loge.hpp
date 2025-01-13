@@ -583,7 +583,7 @@ const char *loglevel_strtbl_color[] =  {
   } while (0)
 
 #define LOGE_TYPE(entime, level) \
-  (int)( ( (!!(entime)) << 31 ) | (level) )
+  (int)( ( (!!(entime)) << LOGTIMESTAMPSHIFT ) | (level) )
 
 #define LOGE_ENTIME(type) \
   (int)(!!(type & LOGTIMESTAMP))
@@ -591,12 +591,23 @@ const char *loglevel_strtbl_color[] =  {
 #define LOGE_LEVEL(type) \
   (enum loge_level)(type & ~LOGTIMESTAMP)
 
+#define LOGE_LOGTYPE(encolor, level) \
+  (int)( ( (!!(encolor)) << LOGCOLORSHIFT ) | (level) )
+
+#define LOGE_ENCOLOR(type) \
+  (int)(!!(type & LOGCOLOR))
+
+#define LOGE_LOGLEVEL(type) \
+  (enum loge_level)(type & ~LOGCOLOR)
+
 enum loge_constants {
   LINENUMBER_WIDTH = 6,
   NUMBER_WIDTH = 8,
   BUFFER_SIZE = 1024,
-  LOGCOLOR = 0x80000000,
-  LOGTIMESTAMP = 0x80000000
+  LOGTIMESTAMPSHIFT = 31,
+  LOGCOLORSHIFT = 31,
+  LOGTIMESTAMP = 1 << LOGTIMESTAMPSHIFT,
+  LOGCOLOR = 1 << LOGCOLORSHIFT
 };
 
 /**
@@ -1365,7 +1376,7 @@ void loge_log(
     return;
   }
 
-  enum loge_level loglevel = (enum loge_level)(logtype & ~LOGCOLOR);
+  enum loge_level loglevel = LOGE_LOGLEVEL(logtype);
   enum loge_level mylevel = LOGE_LEVEL(ploge->log_type);
 
   if (loglevel >= LOGE_MAX ||
@@ -1373,9 +1384,9 @@ void loge_log(
     return;
   }
 
-  int color = !!(logtype & LOGCOLOR);
+  int en_color = LOGE_ENCOLOR(logtype);
 
-  const char *loglvl_tbl = color ?
+  const char *loglvl_tbl = en_color ?
     loglevel_strtbl_color[loglevel] :
     loglevel_strtbl[loglevel];
 
@@ -1392,7 +1403,7 @@ void loge_log(
           localtm.tm_hour, localtm.tm_min, localtm.tm_sec,
           filename,
           ploge->linenumwidth, linenum,
-          color ? 22 : 8, loglvl_tbl
+          en_color ? 22 : 8, loglvl_tbl
         );
 
     } else {
@@ -1401,7 +1412,7 @@ void loge_log(
           "%s:%0*d: %-*s: ",
           filename,
           ploge->linenumwidth, linenum,
-          color ? 22 : 8, loglvl_tbl
+          en_color ? 22 : 8, loglvl_tbl
         );
     }
   }
@@ -1693,6 +1704,15 @@ size_t loge_put_time(struct loge *ploge, struct tm *ptm) {
         ); \
   } while (0)
 
+#define LOGE_LOGTYPE(encolor, level) \
+  static_cast<int>( ( (!!(encolor)) << loge::constants::LOGCOLORSHIFT ) | (level) )
+
+#define LOGE_ENCOLOR(type) \
+  static_cast<int>(!!(type & loge::constants::LOGCOLOR))
+
+#define LOGE_LOGLEVEL(type) \
+  static_cast<enum loge_level>(type & ~loge::constants::LOGCOLOR)
+
 template <
   bool timestamp = true,
   std::size_t buffer_size = 0
@@ -1705,7 +1725,8 @@ class loge {
     LINENUMBER_WIDTH = 6,
     NUMBER_WIDTH = 8,
     BUFFER_SIZE = 1024,
-    LOGCOLOR = 0x80000000
+    LOGCOLORSHIFT = 31,
+    LOGCOLOR = 1 << LOGCOLORSHIFT
   };
 
   enum loge_level {
@@ -2266,17 +2287,16 @@ class loge {
     std::time_t t = std::time(NULL);
     struct tm localtm = *std::localtime(&t);
 
-    enum loge_level loglevel =
-      static_cast<enum loge_level>(logtype & ~constants::LOGCOLOR);
+    enum loge_level loglevel = LOGE_LOGLEVEL(logtype);
 
     if (loglevel >= loge_level::MAX ||
         loglevel < level) {
       return;
     }
 
-    int color = !!(logtype & constants::LOGCOLOR);
+    int en_color = LOGE_ENCOLOR(logtype);
 
-    const char *loglvlstr = color ?
+    const char *loglvlstr = en_color ?
       loglevel_strtbl_color[loglevel] :
       loglevel_strtbl[loglevel];
 
@@ -2291,7 +2311,7 @@ class loge {
           localtm.tm_hour, localtm.tm_min, localtm.tm_sec,
           filename,
           (unsigned int)static_cast<int>(linenumwidth), linenumber,
-          color ? 22 : 8, loglvlstr
+          en_color ? 22 : 8, loglvlstr
         );
 
     } else {
@@ -2299,14 +2319,14 @@ class loge {
           "%s:%0*d: %-*s: ",
           filename,
           static_cast<int>(linenumwidth), linenumber,
-          color ? 22 : 8, loglvlstr
+          en_color ? 22 : 8, loglvlstr
         );
     }
 
 #else /* __cplusplus >= 201703L */
 
     len =
-      make_prefix(buffer.data(), buffer.size(), &localtm, color, filename,
+      make_prefix(buffer.data(), buffer.size(), &localtm, en_color, filename,
           linenumber, loglvlstr);
 
 #endif /* __cplusplus >= 201703L */
