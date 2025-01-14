@@ -1157,11 +1157,7 @@ void loge_setup(
     ploge->plogfn = fn;
   }
 
-#if defined(__GLIBC__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-  ploge->syslog_priority = LOG_USER | LOG_INFO;
-#else
   ploge->syslog_priority = -1;
-#endif
 }
 
 static
@@ -1202,6 +1198,10 @@ static
 void loge_destroy(struct loge *ploge) {
   if (!ploge) {
     return;
+  }
+
+  if (ploge->syslog_priority > -1) {
+    closelog();
   }
 
   if ( (!ploge->bufptr) || (ploge->bufptr == ploge->buffer) ) {
@@ -1835,11 +1835,7 @@ class loge {
 
   using endl_type = std::true_type;
 
-#if defined(__GLIBC__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-  int syslog_priority = LOG_USER | LOG_INFO;
-#else
   int syslog_priority = -1;
-#endif
 
   protected:
 
@@ -1999,6 +1995,10 @@ class loge {
 
   virtual
   ~loge() {
+    if (syslog_priority > -1) {
+      closelog();
+    }
+
     unset_file();
   }
 
