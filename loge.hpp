@@ -1823,6 +1823,8 @@ class loge {
     }
   };
 
+  /* Member variables start */
+
   enum loge_level level;
 
   width_type linenumwidth = constants::LINENUMBER_WIDTH;
@@ -1846,7 +1848,6 @@ class loge {
    */
   std::ostream *p_os = nullptr;
 
-  FILE *p_sockfile = nullptr;
   socket_type sock = LOGE_SOCK_ERR;
 
   std::array<
@@ -1858,6 +1859,8 @@ class loge {
     )
   > buffer;
   std::size_t buflen = 0;
+
+  /* Member variables end */
 
   private:
 
@@ -1916,14 +1919,6 @@ class loge {
       p_os->write(buffer.data(), buflen);
       p_os->put('\n');
       p_os->flush();
-    }
-  }
-
-  void logfn_fileptr() {
-    if (p_sockfile) {
-      fwrite(buffer.data(), buflen, 1, p_sockfile);
-      fputc('\n', p_sockfile);
-      fflush(p_sockfile);
     }
   }
 
@@ -2227,32 +2222,20 @@ class loge {
       return false;
     }
 
-    FILE *file = fdopen(socket_to_native(sock), "w");
-    if (!file) {
-      lgperror(fdopen_str" failed");
-      destroy_socket(sock);
-      return false;
-    }
-
     this->sock = sock;
-    p_sockfile = file;
 
-    prevlogfnptr = logfnptr;
-    logfnptr = &loge<timestamp, buffer_size>::logfn_fileptr;
-
-    std::ostream *prev_os = unset_ostream();
+    std::ostream *prev_os = set_fd(socket_to_native(sock));
     if (prev) {
       *prev = prev_os;
     }
+
+    prevlogfnptr = logfnptr;
+    logfnptr = &loge<timestamp, buffer_size>::logfn_internal;
 
     return true;
   }
 
   void disconnect() {
-    if (!p_sockfile) {
-      return;
-    }
-
     if (sock == -1) {
       return;
     }
@@ -2260,18 +2243,15 @@ class loge {
     /* Stop data communication */
     shutdown_socket(sock);
 
-    /* fclose will close the underlying socket fd on linux */
-    fclose(p_sockfile);
-
-#if defined(_WIN64)
-    /* TODO: is it necessary to call closesocket in windows? */
     destroy_socket(sock);
 
+#if defined(_WIN64)
     WSACleanup();
 #endif
 
-    p_sockfile = nullptr;
     sock = -1;
+
+    unset_fd();
 
     logfnptr = prevlogfnptr;
   }
