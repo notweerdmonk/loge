@@ -935,8 +935,6 @@ FILE* loge_set_stderr(struct loge *ploge) {
   return prev;
 }
 
-/* TODO: call closelog somewhere */
-
 /* glibc and BSD libc only */
 #if defined(__GLIBC__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 
@@ -1200,9 +1198,11 @@ void loge_destroy(struct loge *ploge) {
     return;
   }
 
+#if defined(__GLIBC__) || defined(__FreeBSD__) || defined(__OpenBSD__)
   if (ploge->syslog_priority > -1) {
     closelog();
   }
+#endif
 
   if ( (!ploge->bufptr) || (ploge->bufptr == ploge->buffer) ) {
     return;
@@ -1990,9 +1990,11 @@ class loge {
 
   virtual
   ~loge() {
+#if defined(__GLIBC__) || defined(__FreeBSD__) || defined(__OpenBSD__)
     if (syslog_priority > -1) {
       closelog();
     }
+#endif
 
     unset_file();
   }
