@@ -5,7 +5,7 @@ INCLUDE_DIRS = .. .
 INCLUDE_FLAGS := $(foreach include_dir, $(INCLUDE_DIRS), -I$(include_dir))
 INCLUDE_FLAGS_MSVC := $(foreach include_dir, $(INCLUDE_DIRS), /I$(include_dir))
 
-CFLAGS += -Wno-unused-variable -Wno-unused-parameter -Wno-unused-function
+CFLAGS +=
 
 all: ctest cctest ctestwin cctestwin
 

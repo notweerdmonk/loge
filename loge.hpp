@@ -31,6 +31,9 @@
 #ifndef _LOGE_HPP_
 #define _LOGE_HPP_
 
+#undef UNUSED
+#define UNUSED __attribute__ ((unused))
+
 #if defined(__linux) || defined(__linux__)
 
 #undef _POSIX_C_SOURCE
@@ -304,6 +307,7 @@ void destroy_socket(socket_type sock) {
  * @return NULL on failure, pointer to a dynamically allocated string on
  * success
  */
+UNUSED
 static
 char* strreplace(const char *str, const char *pat, const char *rep) {
   const char *start;
@@ -685,6 +689,7 @@ struct loge {
  *
  * @see enum loge_level
  */
+UNUSED
 static
 const char* loge_get_level(enum loge_level level) {
   return level > LOGE_ALL && level < LOGE_MAX ?
@@ -700,6 +705,7 @@ const char* loge_get_level(enum loge_level level) {
  *
  * @see enum loge_level
  */
+UNUSED
 static
 const char* loge_get_level_color(enum loge_level level) {
   return level > LOGE_ALL && level < LOGE_MAX ?
@@ -707,11 +713,13 @@ const char* loge_get_level_color(enum loge_level level) {
     NULL;
 }
 
+UNUSED
 static
 const char* loge_bufptr(const struct loge *ploge) {
   return !ploge ? (const char*)ploge : ploge->bufptr;
 }
 
+UNUSED
 static
 FILE* loge_fileptr(const struct loge *ploge) {
   return !ploge ? (FILE*)ploge : ploge->file;
@@ -722,6 +730,7 @@ FILE* loge_fileptr(const struct loge *ploge) {
  * the default callback function.
  * @param ploge Pointer to struct loge
  */
+UNUSED
 static
 void log_internal(const struct loge *ploge) {
   if (!ploge) {
@@ -741,6 +750,7 @@ void log_internal(const struct loge *ploge) {
 /* glibc and BSD libc only */
 #if defined(__GLIBC__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 
+UNUSED
 static
 void log_syslog(const struct loge *ploge) {
   if (!ploge) {
@@ -761,6 +771,7 @@ void log_syslog(const struct loge *ploge) {
  *
  * @see enum loge_level
  */
+UNUSED
 static
 void loge_set_level(struct loge *ploge, enum loge_level level) {
   if (!ploge) {
@@ -791,6 +802,7 @@ void loge_set_level(struct loge *ploge, enum loge_level level) {
  * @see log_fn
  * @see loge_log()
  */
+UNUSED
 static
 void loge_set_fn(struct loge *ploge, log_fn fn) {
   if (!ploge || !fn) {
@@ -812,6 +824,7 @@ void loge_set_fn(struct loge *ploge, log_fn fn) {
  * @see log_data_fn
  * @see loge_log()
  */
+UNUSED
 static
 void loge_set_data_fn(struct loge *ploge, log_data_fn fn) {
   if (!ploge) {
@@ -821,6 +834,7 @@ void loge_set_data_fn(struct loge *ploge, log_data_fn fn) {
   ploge->pdatafn = fn;
 }
 
+UNUSED
 static
 FILE* loge_set_fd(struct loge *ploge, int fd) {
   if (!ploge) {
@@ -853,6 +867,7 @@ FILE* loge_set_fd(struct loge *ploge, int fd) {
   return prev;
 }
 
+UNUSED
 static
 void loge_unset_fd(struct loge *ploge) {
   if (!ploge) {
@@ -873,6 +888,7 @@ void loge_unset_fd(struct loge *ploge) {
  * @param ploge Pointer to struct loge
  * @param file Pointer to the stream
  */
+UNUSED
 static
 FILE* loge_set_fileptr(struct loge *ploge, FILE *file) {
   if (!ploge) {
@@ -886,6 +902,7 @@ FILE* loge_set_fileptr(struct loge *ploge, FILE *file) {
   return prev;
 }
 
+UNUSED
 static
 FILE* loge_unset_fileptr(struct loge *ploge) {
   if (!ploge) {
@@ -902,6 +919,7 @@ FILE* loge_unset_fileptr(struct loge *ploge) {
  * function will also be set. User may override it.
  * @param ploge Pointer to struct loge
  */
+UNUSED
 static
 FILE* loge_set_stdout(struct loge *ploge) {
   if (!ploge) {
@@ -921,6 +939,7 @@ FILE* loge_set_stdout(struct loge *ploge) {
  * function will also be set. User may override it.
  * @param ploge Pointer to struct loge
  */
+UNUSED
 static
 FILE* loge_set_stderr(struct loge *ploge) {
   if (!ploge) {
@@ -938,6 +957,7 @@ FILE* loge_set_stderr(struct loge *ploge) {
 /* glibc and BSD libc only */
 #if defined(__GLIBC__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 
+UNUSED
 static
 FILE* loge_set_syslog(struct loge *ploge, int priority) {
   if (!ploge) {
@@ -968,6 +988,7 @@ FILE* loge_set_syslog(struct loge *ploge, int priority) {
  * @param ploge pointer to struct loge
  * @param filepath Relative or absolute path of the output file
  */
+UNUSED
 static
 FILE* loge_set_file(struct loge *ploge, const char *filepath) {
   if (!ploge) {
@@ -1024,6 +1045,7 @@ FILE* loge_set_file(struct loge *ploge, const char *filepath) {
  * @brief Close the output file stream and restore the callback function.
  * @param ploge pointer to struct loge
  */
+UNUSED
 static
 void loge_unset_file(struct loge *ploge) {
   if (!ploge || !ploge->file) {
@@ -1042,6 +1064,7 @@ void loge_unset_file(struct loge *ploge) {
 /* glibc and BSD libc only */
 #if defined(__GLIBC__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 
+UNUSED
 static
 int loge_set_syslog_priority(struct loge *ploge, int priority) {
   if (!ploge) {
@@ -1054,6 +1077,7 @@ int loge_set_syslog_priority(struct loge *ploge, int priority) {
   return prev_priority;
 }
 
+UNUSED
 static
 int loge_syslog_priority(struct loge *ploge) {
   return ploge ? ploge->syslog_priority : -1;
@@ -1080,6 +1104,7 @@ int loge_syslog_priority(struct loge *ploge) {
  * @see log_fn
  * @see LOGE_TYPE
  */
+UNUSED
 static
 void loge_setup(
     struct loge *ploge,
@@ -1158,6 +1183,7 @@ void loge_setup(
   ploge->syslog_priority = -1;
 }
 
+UNUSED
 static
 void loge_set_default_width(struct loge *ploge) {
   if (!ploge) {
@@ -1167,6 +1193,7 @@ void loge_set_default_width(struct loge *ploge) {
   ploge->width = -1;
 }
 
+UNUSED
 static
 void loge_set_width(struct loge *ploge, int width) {
   if (!ploge) {
@@ -1178,6 +1205,7 @@ void loge_set_width(struct loge *ploge, int width) {
   }
 }
 
+UNUSED
 static
 void loge_set_precision(struct loge *ploge, unsigned int precision) {
   if (!ploge) {
@@ -1192,6 +1220,7 @@ void loge_set_precision(struct loge *ploge, unsigned int precision) {
  * allocated buffer was opted for.
  * @param ploge Pointer to struct loge
  */
+UNUSED
 static
 void loge_destroy(struct loge *ploge) {
   if (!ploge) {
@@ -1226,6 +1255,7 @@ void loge_destroy(struct loge *ploge) {
  *
  * @see loge_disconnect()
  */
+UNUSED
 static
 int loge_connect(struct loge *ploge, const char *host,
     unsigned short port, int type, int ipv6, FILE **fileptr) {
@@ -1267,6 +1297,7 @@ int loge_connect(struct loge *ploge, const char *host,
  *
  * @see loge_connect()
  */
+UNUSED
 static
 void loge_disconnect(struct loge *ploge) {
   if (!ploge) {
@@ -1289,6 +1320,7 @@ void loge_disconnect(struct loge *ploge) {
   ploge->plogfn = ploge->pprevlogfn;
 }
 
+UNUSED
 static
 void loge_reset_logfn(struct loge *ploge) {
   if (!ploge) {
@@ -1299,6 +1331,7 @@ void loge_reset_logfn(struct loge *ploge) {
   ploge->plogfn = &log_internal;
 }
 
+UNUSED
 static
 void loge_reset(struct loge *ploge) {
   if (!ploge) {
@@ -1308,6 +1341,7 @@ void loge_reset(struct loge *ploge) {
   ploge->buflen = 0;
 }
 
+UNUSED
 static
 void loge_flush(struct loge *ploge) {
   if (!ploge) {
@@ -1359,6 +1393,7 @@ void loge_flush(struct loge *ploge) {
  * @see log_fn
  * @see log_data_fn
  */
+UNUSED
 static
 void loge_log(
     struct loge *ploge,
@@ -1444,6 +1479,7 @@ void loge_log(
   }
 }
 
+UNUSED
 static
 size_t loge_put_char(struct loge *ploge, char c) {
   if (!ploge) {
@@ -1457,6 +1493,7 @@ size_t loge_put_char(struct loge *ploge, char c) {
   return sizeof(c);
 }
 
+UNUSED
 static
 size_t loge_put_str(struct loge *ploge, const char *pstr) {
   if (!ploge || !pstr) {
@@ -1480,6 +1517,7 @@ size_t loge_put_str(struct loge *ploge, const char *pstr) {
   return ncopy;
 }
 
+UNUSED
 static
 size_t loge_put_int(struct loge *ploge, int n) {
   if (!ploge) {
@@ -1505,6 +1543,7 @@ size_t loge_put_int(struct loge *ploge, int n) {
   return len;
 }
 
+UNUSED
 static
 size_t loge_put_uint(struct loge *ploge, unsigned int n) {
   if (!ploge) {
@@ -1530,6 +1569,7 @@ size_t loge_put_uint(struct loge *ploge, unsigned int n) {
   return len;
 }
 
+UNUSED
 static
 size_t loge_put_long(struct loge *ploge, long n) {
   if (!ploge) {
@@ -1555,6 +1595,7 @@ size_t loge_put_long(struct loge *ploge, long n) {
   return len;
 }
 
+UNUSED
 static
 size_t loge_put_ulong(struct loge *ploge, unsigned long n) {
   if (!ploge) {
@@ -1580,6 +1621,7 @@ size_t loge_put_ulong(struct loge *ploge, unsigned long n) {
   return len;
 }
 
+UNUSED
 static
 size_t loge_put_float(struct loge *ploge, float f) {
   if (!ploge) {
@@ -1606,6 +1648,7 @@ size_t loge_put_float(struct loge *ploge, float f) {
   return len;
 }
 
+UNUSED
 static
 size_t loge_put_double(struct loge *ploge, double f) {
   if (!ploge) {
@@ -1632,6 +1675,7 @@ size_t loge_put_double(struct loge *ploge, double f) {
   return len;
 }
 
+UNUSED
 static
 size_t loge_put_time(struct loge *ploge, struct tm *ptm) {
   if (!ploge || !ptm) {
@@ -1895,7 +1939,7 @@ class loge {
   >
 #ifndef _MSC_VER
   int make_prefix(char *buffer, std::size_t bufcap,
-      struct tm *ptm __attribute__((unused)),
+      struct tm *ptm UNUSED,
 #else
   int make_prefix(char *buffer, std::size_t bufcap, struct tm *ptm,
 #endif
@@ -1940,9 +1984,9 @@ class loge {
   }
 
   virtual
-  bool datafn(std::ostream *p_os, std::time_t &time,
-      const std::string &filename, unsigned int linenum,
-      enum loge_level loglevel, const std::string &msg) {
+  bool datafn(std::ostream * p_os UNUSED, std::time_t & time UNUSED,
+      const std::string & filename UNUSED, unsigned int linenum UNUSED,
+      enum loge_level loglevel UNUSED, const std::string & msg UNUSED) {
 
     return true;
   }
@@ -2587,7 +2631,7 @@ class loge {
     typename std::enable_if<!timestamp_, int>::type = 0
   >
 #ifndef _MSC_VER
-  void insert_tm(struct tm &localtm __attribute__((unused))) {
+  void insert_tm(struct tm &localtm UNUSED) {
 #else
   void insert_tm(struct tm &localtm) {
 #endif
@@ -2638,7 +2682,7 @@ class loge {
   static
   constexpr const endl_type endl = endl_type();
 
-  loge<timestamp, buffer_size>& operator<<(endl_type endl) {
+  loge<timestamp, buffer_size>& operator<<(endl_type endl UNUSED) {
     flush();
     return *this;
   }
