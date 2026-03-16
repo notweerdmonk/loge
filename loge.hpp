@@ -1730,7 +1730,7 @@ size_t loge_put_time(struct loge *ploge, struct tm *ptm) {
   do { \
     if ((ploge) != nullptr) \
       (ploge)->log( \
-          (level) & ~loge<>::constants::LOGCOLOR, \
+          (level) & ~loge<>::loge_level::LOGCOLOR, \
           __LINE__, \
           __FILE__, \
           __VA_ARGS__ \
@@ -1741,7 +1741,7 @@ size_t loge_put_time(struct loge *ploge, struct tm *ptm) {
   do { \
     if ((ploge) != nullptr) \
       (ploge)->log( \
-          (level) | loge<>::constants::LOGCOLOR, \
+          (level) | loge<>::loge_level::LOGCOLOR, \
           __LINE__, \
           __FILE__, \
           __VA_ARGS__ \
@@ -1749,13 +1749,13 @@ size_t loge_put_time(struct loge *ploge, struct tm *ptm) {
   } while (0)
 
 #define LOGE_LOGTYPE(encolor, level) \
-  static_cast<int>( ( (!!(encolor)) << loge::constants::LOGCOLORSHIFT ) | (level) )
+  static_cast<int>( ( (!!(encolor)) << loge::loge_level::LOGCOLORSHIFT ) | (level) )
 
 #define LOGE_ENCOLOR(type) \
-  static_cast<int>(!!(type & loge::constants::LOGCOLOR))
+  static_cast<int>(!!(type & loge::loge_level::LOGCOLOR))
 
 #define LOGE_LOGLEVEL(type) \
-  static_cast<enum loge_level>(type & ~loge::constants::LOGCOLOR)
+  static_cast<enum loge_level>(type & ~loge::loge_level::LOGCOLOR)
 
 template <
   bool timestamp = true,
@@ -1770,7 +1770,6 @@ class loge {
     NUMBER_WIDTH = 8,
     BUFFER_SIZE = 1024,
     LOGCOLORSHIFT = 31,
-    LOGCOLOR = 1 << LOGCOLORSHIFT
   };
 
   enum loge_level {
@@ -1780,7 +1779,8 @@ class loge {
     WARNING,
     ERROR,
     CRITICAL,
-    MAX
+    MAX,
+    LOGCOLOR = 1 << loge::constants::LOGCOLORSHIFT
   };
 
   private:
