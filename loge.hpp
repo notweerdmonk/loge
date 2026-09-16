@@ -1,7 +1,7 @@
 /*
   MIT License
 
-  Copyright (c) 2024 notweerdmonk
+  Copyright (c) 2026 notweerdmonk
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
   of this software and associated documentation files (the "Software"), to deal
@@ -25,27 +25,44 @@
 /**
  * @file loge.hpp
  * @author notweerdmonk
- * @brief Log to stdout, stderr, file, file descriptor, syslog, TCP socket
+ * @brief Log to stdout, stderr, file, file descriptor, syslog, UDP/TCP sockets
  */
 
 #ifndef _LOGE_HPP_
 #define _LOGE_HPP_
 
-#undef UNUSED
-#define UNUSED __attribute__ ((unused))
-
 #if defined(__linux) || defined(__linux__)
 
+#ifdef _POSIX_C_SOURCE
 #undef _POSIX_C_SOURCE
+#endif
 #define _POSIX_C_SOURCE 1 /* For fdopen */
+
+#ifdef _DEFAULT_SOURCE
+#undef _DEFAULT_SOURCE
+#endif
+#define _DEFAULT_SOURCE 1 /* For syscall */
+
+#ifdef _GNU_SOURCE
+#undef _GNU_SOURCE
+#endif
+#define _GNU_SOURCE 1 /* For reallocarray */
+
 
 /* linux */
 #include <unistd.h>
+#include <stdint.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <sys/wait.h>
+#include <linux/seccomp.h>
+#include <linux/filter.h>
+#include <linux/audit.h>
+#include <sys/prctl.h>
+#include <sys/syscall.h>
 
 #elif defined(_WIN64)
 
@@ -64,6 +81,7 @@
 #endif
 
 /* libc */
+#include <stddef.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -79,7 +97,7 @@
 /***************************** Common code starts *****************************/
 
 
-/* ANSI escape codes */
+/* ANSI SGR escape sequences */
 #define ANSI_FG_BLACK   "\x1b[30m"
 #define ANSI_FG_RED     "\x1b[31m"
 #define ANSI_FG_GREEN   "\x1b[32m"
@@ -112,7 +130,7 @@
 
 #ifdef lgperror
 
-#warning lgperror previoulsy defined
+#warning lgperror previously defined
 
 #undef lgperror
 
@@ -120,8 +138,9 @@
 
 #define lgperror(msg) \
   do { \
-    fprintf(stderr, "%s: " msg ": %s\n", \
+    fprintf(stderr, "%s: %d: " msg ": %s\n", \
             __func__, \
+            __LINE__, \
             strerror(errno) \
           ); \
   } while (0)
@@ -138,11 +157,37 @@
 
 #define lgerror(msg, ...) \
   do { \
-    fprintf(stderr, "%s: " msg "\n", \
+    fprintf(stderr, "%s: %d: " msg "\n", \
             __func__, \
+            __LINE__, \
             __VA_ARGS__ \
           ); \
   } while (0)
+
+#if defined DEBUG_LEVEL && DEBUG_LEVEL >= 2
+
+#ifdef lgdebug
+
+#warning lgdebug previously defined
+
+#undef lgdebug
+
+#endif
+
+#define lgdebug(fmt, ...) \
+  do { \
+    fprintf(stderr, "%s: %d: " fmt "\n", \
+            __func__, \
+            __LINE__, \
+            __VA_ARGS__ \
+          ); \
+  } while (0)
+
+#else /* !DEBUG_LEVEL || !DEBUG_LEVEL >= 2 */
+
+#define lgdebug(...)
+
+#endif /* DEBUG_LEVEL && DEBUG_LEVEL >= 2 */
 
 #else /* !__cplusplus */
 
@@ -155,6 +200,7 @@
 #endif
 
 #include <iostream>
+#include <array>
 #include <cstdio>
 
 #define lgperror(msg) \
@@ -170,14 +216,41 @@
 
 #endif
 
-#define lgerror(msg, ...) \
+#define lgerror(fmt, ...) \
   do { \
-    std::array<char, loge::constants::BUFFER_SIZE> buffer; \
-    snprintf(buffer.data(), loge::constants::BUFFER_SIZE, \
-        msg, __VA_ARGS__); \
-    buffer[loge::constants::BUFFER_SIZE - 1] = '\0'; \
+    enum { LGERROR_BUFFER_SIZE = 1024 }; \
+    std::array<char, LGERROR_BUFFER_SIZE> buffer; \
+    snprintf(buffer.data(), LGERROR_BUFFER_SIZE, \
+        fmt, __VA_ARGS__); \
+    buffer[LGERROR_BUFFER_SIZE - 1] = '\0'; \
     std::cerr << __func__ << ": " << buffer.data() << '\n'; \
   } while (0)
+
+#ifdef lgdebug
+
+#warning lgdebug previously defined
+
+#undef lgdebug
+
+#endif
+
+#if defined DEBUG_LEVEL && DEBUG_LEVEL >= 2
+
+#define lgdebug(fmt, ...) \
+  do { \
+    enum { LGDEBUG_BUFFER_SIZE = 1024 }; \
+    std::array<char, LGDEBUG_BUFFER_SIZE> buffer; \
+    snprintf(buffer.data(), LGDEBUG_BUFFER_SIZE, \
+        fmt, __VA_ARGS__); \
+    buffer[LGDEBUG_BUFFER_SIZE - 1] = '\0'; \
+    std::cerr << __func__ << ": " << buffer.data() << '\n'; \
+  } while (0)
+
+#else /* !DEBUG_LEVEL || !DEBUG_LEVEL >= 2 */
+
+#define lgdebug(...)
+
+#endif /* DEBUG_LEVEL && DEBUG_LEVEL >= 2 */
 
 #endif /* !__cplusplus */
 
@@ -185,6 +258,22 @@
 #define __xstr(s) __tostr(s)
 #define __tostr(s) #s
 
+/* Unused variables and functions */
+#if __cplusplus >= 201703L
+
+#define UNUSED [[maybe_unused]]
+
+#elif defined(__GNUC__)
+
+#define UNUSED __attribute__((unused))
+
+#else
+
+#define UNUSED
+
+#endif
+
+#define UNUSED_VAR(x) (void)x
 
 /* Adjustment for fdopen */
 #if defined(_MSC_VER)
@@ -215,6 +304,12 @@ extern FILE *fdopen(int fd, const char *mode);
 #define fdopen_str __xstr(fdopen)
 #define close_str __xstr(close)
 
+/* Adjustment for seccomp */
+#ifdef seccomp
+#undef seccomp
+#endif
+#define seccomp(op, flags, args)  syscall(SYS_seccomp, op, flags, args)
+
 
 #ifdef __cplusplus
 
@@ -222,6 +317,150 @@ extern "C" {
 
 #endif
 
+/******************* safe_call forward declaration starts *********************/
+
+typedef int (*safe_callee_type)(size_t nargs, va_list va);
+
+enum {
+  SAFE_CALL_BLOCK_ARCH_NONE   = 0,
+  SAFE_CALL_BLOCK_ARCH_I386   = 1,
+  SAFE_CALL_BLOCK_ARCH_x86_64 = 2,
+
+  SAFE_CALL_OFFSET      = 4,
+  SAFE_CALL_MASK        = 0x80000000,
+  SAFE_CALL_CALLEE_NULL = SAFE_CALL_MASK
+};
+
+#define EXP_ARCH_NONE   1
+#define EXP_ARCH_I386   2
+#define EXP_ARCH_x86_64 3
+
+#ifndef EXP_ARCH
+enum {
+  GATE_SAFECALL_ARCH_BLOCK = SAFE_CALL_BLOCK_ARCH_I386 | SAFE_CALL_BLOCK_ARCH_x86_64
+};
+#elif EXP_ARCH == EXP_ARCH_I386
+enum {
+  GATE_SAFECALL_ARCH_BLOCK = SAFE_CALL_BLOCK_ARCH_x86_64
+};
+#elif EXP_ARCH == EXP_ARCH_x86_64
+enum {
+  GATE_SAFECALL_ARCH_BLOCK = SAFE_CALL_BLOCK_ARCH_I386
+};
+#else
+enum {
+  GATE_SAFECALL_ARCH_BLOCK = 0
+};
+#endif
+
+enum {
+  GATE_SAFECALL_SYSCALLS_MASK = SIZE_MAX
+};
+
+#define BPF_JMP_OFFSET_CAST(...) ((uint8_t)(__VA_ARGS__))
+
+#define SAFE_CALL_STATUS(argidx) \
+  (SAFE_CALL_MASK | ((argidx) + 1) << SAFE_CALL_OFFSET)
+
+static
+void safe_call_wait_status(
+    int status,
+    const char *msgexit,
+    const char *msgterm,
+    const char *msgstop
+);
+
+static
+unsigned int
+safe_call(
+    safe_callee_type callee,
+    const size_t n_block_syscalls,
+    const unsigned int *syscalls,
+    uint64_t block_arch,
+    const size_t nchecks,
+    const size_t nargs,
+    ...
+);
+
+/* List of syscalls to be blocked */
+static
+const unsigned int nr_syscalls[] = {
+
+#if defined(__linux) || defined(__linux__)
+
+  __NR_ptrace,
+  __NR_execve,
+  __NR_execveat,
+  __NR_fork,
+  __NR_vfork,
+  __NR_clone,
+  __NR_setuid,
+  __NR_setgid,
+  __NR_setresuid,
+  __NR_setresgid,
+  __NR_ioctl,
+  __NR_chroot,
+  /* Allow write */
+#if !defined(EXP_SYSCALLS) && 0
+  __NR_write, /* TODO: Use syscall args filter for such syscalls */
+#endif
+  __NR_umask,
+  __NR_mount,
+  __NR_umount2,
+  __NR_bind,
+  __NR_listen,
+  __NR_accept,
+  __NR_sendto,
+  __NR_recvfrom,
+  __NR_sendmsg,
+  __NR_recvmsg,
+#ifndef EXP_SYSCALLS
+  __NR_sendfile,
+#endif
+  __NR_kill,
+  __NR_tgkill,
+  __NR_tkill,
+  __NR_fchmod,
+  __NR_fchown,
+  __NR_chmod,
+  __NR_chown,
+  __NR_rename,
+  __NR_renameat,
+  __NR_getdents,
+  __NR_getdents64,
+  __NR_prctl
+#ifndef EXP_SYSCALLS
+  ,__NR_mprotect,
+#endif
+
+#else
+
+  0
+
+#endif
+
+};
+
+/******************** safe_call forward declaration ends **********************/
+
+/**
+ * It is advisable to have only one bit set in the mask argument to enable the
+ * compiler ot generate a BTR instruction.
+ */
+/* TODO: achieve real BTR in assembly */
+static
+inline
+uint64_t btr(uint64_t *value, uint64_t mask) {
+  if (!value) {
+    return 0;
+  }
+
+  uint64_t old = *value & mask;
+
+  *value &= ~mask;
+
+  return old;
+}
 
 #if defined(__linux) || defined(__linux__)
 
@@ -368,7 +607,7 @@ static
 int dprintf(int d, const char *fmt, ...) {
  enum { BUFFER_SIZE_DPRINTF = 4096 };
 
- va_list ap; 
+ va_list ap;
  int done;
  int at = 0, nwrite = 0;
  char *buf;
@@ -564,9 +803,10 @@ const char *loglevel_strtbl_color[] =  {
  */
 #define LOGE(ploge, level, ...) \
   do { \
-    if ((ploge) != NULL) \
+    struct loge *p = (ploge); \
+    if (p != NULL) \
       loge_log( \
-          (struct loge*)(ploge), \
+          p, \
           (level) & ~LOGCOLOR, \
           __LINE__, \
           __FILE__, \
@@ -576,9 +816,10 @@ const char *loglevel_strtbl_color[] =  {
 
 #define LOGE_COLOR(ploge, level, ...) \
   do { \
-    if ((ploge) != NULL) \
+    struct loge *p = (ploge); \
+    if (p) \
       loge_log( \
-          (struct loge*)(ploge), \
+          p, \
           (level) | LOGCOLOR, \
           __LINE__, \
           __FILE__, \
@@ -682,6 +923,37 @@ struct loge {
   int syslog_priority;
 };
 
+static
+int loge_logfn_va(size_t nargs UNUSED, va_list va) {
+  const struct loge *ploge = va_arg(va, struct loge*);
+
+  ploge->plogfn(ploge);
+
+  return 0;
+}
+
+static
+int loge_datafn_va(size_t nargs UNUSED, va_list va) {
+  const struct loge *ploge = va_arg(va, const struct loge*);
+  FILE *file = va_arg(va, FILE*);
+  time_t timestamp = va_arg(va, time_t);
+  const char *filename = va_arg(va, const char*);
+  int linenum = va_arg(va, int);
+  enum loge_level level = va_arg(va, enum loge_level);
+  const char *msg = va_arg(va, const char*);
+
+  ploge->pdatafn(
+      file,
+      timestamp,
+      filename,
+      linenum,
+      level,
+      msg
+    );
+
+  return 0;
+}
+
 /**
  * @brief Get pointer to a string containing the name of the log type/level
  * @param level Enum mentioning the log type/level
@@ -732,7 +1004,7 @@ FILE* loge_fileptr(const struct loge *ploge) {
  */
 UNUSED
 static
-void log_internal(const struct loge *ploge) {
+void logfn_internal(const struct loge *ploge) {
   if (!ploge) {
     return;
   }
@@ -752,7 +1024,7 @@ void log_internal(const struct loge *ploge) {
 
 UNUSED
 static
-void log_syslog(const struct loge *ploge) {
+void logfn_syslog(const struct loge *ploge) {
   if (!ploge) {
     return;
   }
@@ -862,7 +1134,7 @@ FILE* loge_set_fd(struct loge *ploge, int fd) {
   ploge->file = file;
 
   ploge->pprevlogfn = ploge->plogfn;
-  ploge->plogfn = &log_internal;
+  ploge->plogfn = &logfn_internal;
 
   return prev;
 }
@@ -927,7 +1199,7 @@ FILE* loge_set_stdout(struct loge *ploge) {
   }
 
   ploge->pprevlogfn = ploge->plogfn;
-  ploge->plogfn = &log_internal;
+  ploge->plogfn = &logfn_internal;
 
   FILE *prev = ploge->file;
   ploge->file = stdout;
@@ -947,7 +1219,7 @@ FILE* loge_set_stderr(struct loge *ploge) {
   }
 
   ploge->pprevlogfn = ploge->plogfn;
-  ploge->plogfn = &log_internal;
+  ploge->plogfn = &logfn_internal;
 
   FILE *prev = ploge->file;
   ploge->file = stderr;
@@ -973,7 +1245,7 @@ FILE* loge_set_syslog(struct loge *ploge, int priority) {
   ploge->syslog_priority = priority;
 
   ploge->pprevlogfn = ploge->plogfn;
-  ploge->plogfn = &log_syslog;
+  ploge->plogfn = &logfn_syslog;
 
   return prev;
 }
@@ -1036,9 +1308,9 @@ FILE* loge_set_file(struct loge *ploge, const char *filepath) {
   ploge->file = file;
 
   ploge->pprevlogfn = ploge->plogfn;
-  ploge->plogfn = &log_internal;
+  ploge->plogfn = &logfn_internal;
 
-  return prev; 
+  return prev;
 }
 
 /**
@@ -1167,6 +1439,7 @@ void loge_setup(
 
   ploge->pprevlogfn = NULL;
   ploge->plogfn = NULL;
+  ploge->pdatafn = NULL;
 
   /* Set default stream as stdout and use default logger function */
   loge_set_stdout(ploge);
@@ -1279,7 +1552,7 @@ int loge_connect(struct loge *ploge, const char *host,
   ploge->sockfd = sock;
 
   ploge->pprevlogfn = ploge->plogfn;
-  ploge->plogfn = &log_internal;
+  ploge->plogfn = &logfn_internal;
 
   FILE *prev = loge_set_fileptr(ploge, file);
   if (fileptr) {
@@ -1328,7 +1601,7 @@ void loge_reset_logfn(struct loge *ploge) {
   }
 
   ploge->pprevlogfn = ploge->plogfn;
-  ploge->plogfn = &log_internal;
+  ploge->plogfn = &logfn_internal;
 }
 
 UNUSED
@@ -1415,6 +1688,7 @@ void loge_log(
   enum loge_level mylevel = LOGE_LEVEL(ploge->log_type);
 
   if (loglevel >= LOGE_MAX ||
+      loglevel <= LOGE_ALL ||
       loglevel < mylevel) {
     return;
   }
@@ -1461,21 +1735,98 @@ void loge_log(
 
   ploge->buflen = len;
 
+  int ret = 0;
+
   if (ploge->pdatafn) {
-    ploge->pdatafn(
-        ploge->file,
-        t,
-        filename,
-        linenum,
-        loglevel,
-        ploge->bufptr
-      );
+    if (
+        (
+          ret = safe_call(
+            loge_datafn_va,
+            sizeof(nr_syscalls) / sizeof(nr_syscalls[0]),
+            nr_syscalls,
+            GATE_SAFECALL_ARCH_BLOCK,
+            2,
+            7,
+            ploge->file != NULL,
+            ploge->bufptr != NULL,
+            ploge, ploge->file, t, filename, linenum, loglevel,
+            ploge->bufptr
+          )
+        ) != 0
+    ) {
 
-  } else if (ploge->plogfn) {
-    ploge->plogfn(ploge);
+      switch (ret) {
+        case 0: {
+          break;
+        }
+        case SAFE_CALL_STATUS(0): {
+          lgerror("logger FILE pointer is NULL, ploge: %p, ploge->file: %p",
+              ploge, ploge->file);
+          break;
+        }
+        case SAFE_CALL_STATUS(1): {
+          lgerror("logger message buffer is NULL, ploge: %p, ploge->bufptr: %p",
+              ploge, ploge->bufptr);
+          break;
+        }
+        default:
+          lgerror("logger data callback function safe call returned %d", ret);
 
-  } else {
-    lgerror("log callback not set for logger %p", ploge);
+#if defined(__linux) || defined(__linux__)
+
+        safe_call_wait_status(
+            ret,
+            "logger data callback function",
+            "logger data callback function",
+            "logger data callback function"
+          );
+
+#endif
+
+      }
+    }
+
+  } else if (
+      (
+        ret = safe_call(
+          loge_logfn_va,
+          0,
+          NULL,
+          SAFE_CALL_BLOCK_ARCH_NONE,
+          3,
+          1,
+          ploge->plogfn != NULL,
+#if defined(__GLIBC__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+          ploge->plogfn == (log_fn)&logfn_syslog || ploge->file != NULL,
+#else
+          ploge->file != NULL,
+#endif
+          ploge->bufptr != NULL,
+          ploge
+      )
+    ) != 0
+  ) {
+    switch (ret) {
+      case SAFE_CALL_STATUS(0): {
+        lgerror("logger callback function pointer is NULL, ploge: %p, "
+            "ploge->plogfn: %p", ploge, ploge->plogfn);
+        break;
+      }
+      case SAFE_CALL_STATUS(1): {
+        lgerror("logger FILE pointer is NULL, ploge: %p, ploge->file: %p",
+            ploge, ploge->file);
+        break;
+      }
+      case SAFE_CALL_STATUS(2): {
+        lgerror("logger message buffer is NULL, ploge: %p, ploge->bufptr: %p",
+            ploge, ploge->bufptr);
+        break;
+      }
+      default:
+        lgerror("logger callback function safe call returned %x, error: %s",
+            ret, strerror(errno));
+    }
+
   }
 }
 
@@ -1709,7 +2060,6 @@ size_t loge_put_time(struct loge *ploge, struct tm *ptm) {
 
 #endif
 
-
 /****************************** C++ code starts *******************************/
 
 #ifdef __cplusplus
@@ -1757,9 +2107,16 @@ size_t loge_put_time(struct loge *ploge, struct tm *ptm) {
 #define LOGE_LOGLEVEL(type) \
   static_cast<enum loge_level>(type & ~loge::loge_level::LOGCOLOR)
 
+/* Forward declare class loge */
 template <
   bool timestamp = true,
   std::size_t buffer_size = 0
+>
+class loge;
+
+template <
+  bool timestamp,
+  std::size_t buffer_size
 >
 class loge {
 
@@ -1769,7 +2126,7 @@ class loge {
     LINENUMBER_WIDTH = 6,
     NUMBER_WIDTH = 8,
     BUFFER_SIZE = 1024,
-    LOGCOLORSHIFT = 31,
+    LOGCOLORSHIFT = 31
   };
 
   enum loge_level {
@@ -1885,7 +2242,7 @@ class loge {
 
   protected:
 
-  /*
+  /**
    * NOTE
    * Caution for user while working with p_os
    * p_os can be set as nullptr. User callbacks shall check it.
@@ -1966,7 +2323,29 @@ class loge {
     }
   }
 
-/* glibc and BSD libc only */
+  static
+  int datafn_va(size_t nargs UNUSED, va_list va) {
+    loge<> *ploge = va_arg(va, loge<>*);
+    std::ostream *p_os = va_arg(va, std::ostream*);
+    time_t t = va_arg(va, time_t);
+    const char *filename = va_arg(va, const char*);
+    int linenumber = va_arg(va, int);
+    enum loge<>::loge_level loglevel =
+      static_cast<enum loge<>::loge_level>(va_arg(va, int));
+    const char *msg = va_arg(va, const char*);
+
+    return ploge->datafn(
+      ploge,
+      p_os,
+      t,
+      filename,
+      linenumber,
+      loglevel,
+      msg
+    );
+  }
+
+  /* glibc and BSD libc only */
 #if defined(__GLIBC__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 
   void logfn_syslog() {
@@ -1983,12 +2362,26 @@ class loge {
     logfn_internal();
   }
 
+  /**
+   * NOTE
+   * Override this virtual member function to return true when overriding the
+   * datafn virtual member function
+   */
   virtual
-  bool datafn(std::ostream * p_os UNUSED, std::time_t & time UNUSED,
-      const std::string & filename UNUSED, unsigned int linenum UNUSED,
-      enum loge_level loglevel UNUSED, const std::string & msg UNUSED) {
+  constexpr bool is_datafn_implemented() const {
+    return false;
+  }
 
-    return true;
+  virtual int datafn(
+    loge<> *ploge UNUSED,
+    std::ostream* p_os UNUSED,
+    std::time_t& time UNUSED,
+    const std::string& filename UNUSED,
+    unsigned int linenum UNUSED,
+    enum loge_level loglevel UNUSED,
+    const std::string& msg UNUSED
+  ) {
+    return -1;
   }
 
   public:
@@ -2048,7 +2441,7 @@ class loge {
       loglevel_strtbl[level] :
       NULL;
   }
-  
+
   const char* get_level_color(enum loge_level level) {
     return level > loge<>::ALL && level < loge<>::MAX ?
       loglevel_strtbl_color[level] :
@@ -2099,7 +2492,7 @@ class loge {
     return prev;
   }
 
-/* glibc and BSD libc only */
+  /* glibc and BSD libc only */
 #if defined(__GLIBC__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 
   std::ostream* set_syslog(int priority) {
@@ -2364,12 +2757,54 @@ class loge {
 
     buflen = len;
 
-    if (datafn(p_os, t, filename, linenumber, loglevel, msg)) {
+    unsigned int ret = 0;
+
+    if (is_datafn_implemented()) {
+      ret =
+        safe_call(
+            datafn_va,
+            sizeof(nr_syscalls) / sizeof(nr_syscalls[0]),
+            nr_syscalls,
+            GATE_SAFECALL_ARCH_BLOCK,
+            1,
+            7,
+            p_os != nullptr,
+            this, p_os, t, filename, linenumber, loglevel, msg
+        );
+
+      switch (ret) {
+        case 0: {
+          break;
+        }
+        case SAFE_CALL_STATUS(0): {
+          lgerror("logger std::ostream pointer is nullptr, logger: %p, p_os: %p",
+              this, p_os);
+          break;
+        }
+        default:
+          lgerror("logger data member function safe call returned %d", ret);
+
+#if defined(__linux) || defined(__linux__)
+
+          safe_call_wait_status(
+              ret,
+              "logger data member function",
+              "logger data member function",
+              "logger data member function"
+            );
+
+#endif
+
+      }
+    } else {
       (this->*logfnptr)();
     }
   }
 
-  loge<timestamp, buffer_size>& operator<<(const loge<timestamp, buffer_size> &other) {
+  loge<timestamp, buffer_size>& operator<<(
+      const loge<timestamp,
+      buffer_size> &other
+  ) {
     if (this != &other) {
       this->level = other.level;
       this->linenumwidth = other.linenumwidth;
@@ -2694,5 +3129,286 @@ class loge {
 /******************************* C++ code ends ********************************/
 
 #undef _POSIX_C_SOURCE
+
+#ifdef __cplusplus
+
+extern "C" {
+
+#endif
+
+/*************************** safe_call code starts ****************************/
+
+static size_t __safe_call_syscalls_mask = GATE_SAFECALL_SYSCALLS_MASK;
+
+#ifndef __cplusplus
+
+static
+inline
+struct sock_filter* alloc_sock_filter(void *ptr, size_t nmemb, size_t size) {
+  return reallocarray(ptr, nmemb, size);
+}
+
+#else /* __cplusplus */
+
+static
+inline
+struct sock_filter* alloc_sock_filter(void *ptr, size_t nmemb, size_t size) {
+  return reinterpret_cast<struct sock_filter*>(
+      reallocarray(ptr, nmemb, size)
+  );
+}
+
+#endif /* __cplusplus */
+
+static
+inline
+void safe_call_wait_status(
+    int status,
+    const char *msgexit,
+    const char *msgterm,
+    const char *msgstop
+) {
+#if defined(__linux) || defined(__linux__)
+
+  if (WIFEXITED((status))) {
+    lgerror("%s%s %d", msgexit, ": safe call process exited, callee returned ",
+        WEXITSTATUS((status)));
+  } else if (WIFSIGNALED((status))) {
+    lgerror("%s%s %d: %s", msgterm, ": safe call process terminated by signal ",
+        WTERMSIG((status)), strsignal(WTERMSIG((status))));
+  } else if (WIFSTOPPED((status))) {
+    lgerror("%s%s %d: %s", msgstop, ": safe call process stopped by signal ",
+        WSTOPSIG((status)), strsignal(WSTOPSIG((status))));
+  }
+
+#endif /* __linux || __linux__ */
+}
+
+static
+unsigned short safe_call_make_filter(
+    size_t n_block_syscalls,
+    const unsigned int *syscalls,
+    uint64_t block_arch,
+    struct sock_filter **prev_filter
+) {
+  uint8_t n_block_archs = block_arch ? __builtin_popcount(block_arch) : 0;
+
+  unsigned short filter_size =
+    (n_block_syscalls + !!n_block_syscalls) +
+    (!!n_block_archs + n_block_archs);
+
+  if (filter_size) {
+    filter_size += 3;
+  } else {
+    return 0;
+  }
+
+  if (!prev_filter) {
+    return 0;
+  }
+
+  struct sock_filter *filter = prev_filter ? *prev_filter : NULL;
+  filter = alloc_sock_filter(filter, sizeof(struct sock_filter), filter_size);
+
+  if (!filter) {
+    return 0;
+  }
+
+  if (prev_filter) {
+    *prev_filter = filter;
+  }
+
+  unsigned short i = 0;
+  uint8_t jmp_offset = 0;
+
+  if (n_block_syscalls) {
+    jmp_offset = n_block_syscalls - 1;
+
+    lgdebug("jmp_offset: %d", jmp_offset);
+    lgdebug("filter size: %d", i);
+
+    filter[i++] = (struct sock_filter)BPF_STMT(BPF_LD | BPF_W | BPF_ABS,
+        (offsetof(struct seccomp_data, nr)));
+
+    for (uint8_t j = 0; j < n_block_syscalls - 1; ++j) {
+      lgdebug("filter size: %d", i);
+
+      filter[i++] = (struct sock_filter)BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K,
+          syscalls[j], jmp_offset, 0);
+
+      --jmp_offset;
+
+      lgdebug("jmp_offset: %d", jmp_offset);
+      lgdebug("j: %d", j);
+    }
+
+    jmp_offset = (!!n_block_archs + n_block_archs) + 2;
+
+    lgdebug("filter size: %d", i);
+
+    filter[i++] = (struct sock_filter)BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K,
+        syscalls[n_block_syscalls - 1], 0, jmp_offset);
+
+    lgdebug("filter size: %d", i);
+  }
+
+  jmp_offset = (!!n_block_archs + n_block_archs);
+
+  if (block_arch) {
+    lgdebug("jmp_offset: %d", jmp_offset);
+    lgdebug("filter size: %d", i);
+
+    filter[i++] = (struct sock_filter)BPF_STMT(BPF_LD | BPF_W | BPF_ABS,
+        (offsetof(struct seccomp_data, arch)));
+
+    --jmp_offset;
+
+    lgdebug("jmp_offset: %d", jmp_offset);
+  }
+
+  for (uint8_t k = 0; k < n_block_archs; ++k) {
+    uint32_t arch =
+      btr(&block_arch, SAFE_CALL_BLOCK_ARCH_I386) ?
+        AUDIT_ARCH_I386 :
+        btr(&block_arch, SAFE_CALL_BLOCK_ARCH_x86_64) ?
+          AUDIT_ARCH_X86_64 : 0;
+
+    lgdebug("%s", "using arch block");
+    lgdebug("block_arch: %lu", block_arch);
+    lgdebug("arch: %x", arch);
+    lgdebug("filter size: %d", i);
+
+    filter[i++] = (struct sock_filter)BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K,
+        arch, jmp_offset, 0);
+
+    --jmp_offset;
+
+    lgdebug("jmp_offset: %d", jmp_offset);
+    lgdebug("k: %d", k);
+  }
+
+  filter[i++] = (struct sock_filter)BPF_STMT(BPF_JMP | BPF_JA, 1);
+
+  filter[i++] = (struct sock_filter)BPF_STMT(BPF_RET | BPF_K,
+      SECCOMP_RET_KILL);
+
+  filter[i++] = (struct sock_filter)BPF_STMT(BPF_RET | BPF_K,
+      SECCOMP_RET_ALLOW);
+
+  lgdebug("filter size: %d", i);
+
+  return i;
+}
+
+static
+unsigned int
+safe_call(
+    safe_callee_type callee,
+    size_t n_block_syscalls
+#if defined(__linux) || defined(__linux__)
+    UNUSED,
+#else
+    ,
+#endif
+    const unsigned int *syscalls
+#if defined(__linux) || defined(__linux__)
+    UNUSED,
+#else
+    ,
+#endif
+    uint64_t block_arch,
+    const size_t nchecks,
+    const size_t nargs,
+    ...
+) {
+
+  if (!callee) {
+    return SAFE_CALL_CALLEE_NULL;
+  }
+
+#if defined(__linux) || defined(__linux__)
+
+  va_list va;
+  va_start(va, nargs);
+
+  for (size_t i = 0; i < nchecks; ++i) {
+    int result = va_arg(va, int);
+    if (!result) {
+      va_end(va);
+      return SAFE_CALL_STATUS(i);
+    }
+  }
+
+  va_end(va);
+
+  n_block_syscalls &= __safe_call_syscalls_mask;
+
+  switch (n_block_syscalls) {
+    case 0:
+      break;
+    default:
+      /* Static data for BPF filter used by seccomp */
+      static unsigned short filter_size = 0;
+      static struct sock_filter *filter = NULL;
+
+      if (!filter) {
+        filter_size = safe_call_make_filter(
+            n_block_syscalls,
+            syscalls,
+            block_arch,
+            &filter
+        );
+      }
+
+      if (!filter_size || !filter) {
+        lgperror("safe_call_make_filter failed");
+        break;
+      }
+
+      lgdebug("filter: %p", filter);
+      lgdebug("filter size: %d", filter_size);
+
+      pid_t pid = fork();
+
+      int ret = 0;
+
+      if (pid == 0) {
+        /* Block syscalls with seccomp */
+        prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
+
+        struct sock_fprog prog = {
+          .len = filter_size,
+          .filter = filter
+        };
+
+        if (seccomp(SECCOMP_SET_MODE_FILTER, 0, &prog)) {
+          lgperror("seccomp failed");
+        }
+
+        ret = (*callee)(nargs, va);
+
+        exit(ret);
+      }
+
+      wait(&ret);
+      lgdebug("safe_call child ret: %d", ret);
+      return ret;
+  }
+
+#endif
+
+  return (*callee)(nargs, va);
+}
+
+/**************************** safe_call code ends *****************************/
+
+#ifdef __cplusplus
+
+} /* extern "C" */
+
+#endif
+
+#undef _GNU_SOURCE
+#undef _DEFAULT_SOURCE
 
 #endif /* _LOGE_HPP_ */

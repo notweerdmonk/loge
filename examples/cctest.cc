@@ -6,15 +6,24 @@
 
 using custom_logger_base = loge<true>;
 
-class custom_logger  : public custom_logger_base {
+class custom_logger : public custom_logger_base {
 
-  public:
+  private:
 
-  bool datafn(std::ostream *p_os, std::time_t &time,
-      const std::string &filename, unsigned int linenum,
-      enum loge_level loglevel, const std::string &msg) override {
+  constexpr bool is_datafn_implemented() const override {
+    return true;
+  }
 
-    const char *loglvl_str = get_level_color(loglevel);
+  int datafn(
+    loge<> *ploge,
+    std::ostream * p_os UNUSED,
+    std::time_t & time UNUSED,
+    const std::string& filename UNUSED,
+    unsigned int linenum UNUSED,
+    enum loge_level loglevel UNUSED,
+    const std::string& msg UNUSED
+  ) {
+    const char *loglvl_str = ploge->get_level_color(loglevel);
 
     char buf[1024];
 
@@ -31,8 +40,10 @@ class custom_logger  : public custom_logger_base {
 
     p_os->write(buf, done);
 
-    return false;
+    return 0;
   }
+
+  public:
 
   custom_logger(custom_logger_base::loge_level loglevel)
     : loge(loglevel) {
@@ -40,7 +51,6 @@ class custom_logger  : public custom_logger_base {
 };
 
 int main() {
-
   loge<true> logger(loge<>::ALL);
 
   LOGE_COLOR(&logger, loge<>::INFO, "Default stdout %d %s", 10, "foo");
@@ -55,11 +65,11 @@ int main() {
   LOGE(&logger, loge<>::WARNING, "File %d %s", 10, "baz");
   LOGE(&logger, loge<>::ERROR, "File %d %s", 10, "pebkac");
   LOGE(&logger, loge<>::CRITICAL, "File %d %s", 10, "grokking");
+
   /*
    * Call unset_file() to free the ofstream object associated with output file
    */
   logger.unset_file();
-
   LOGE(&logger, loge<>::INFO, "This will not get logged");
 
   /* Any logger object can be reused to log to an open file descriptor */
@@ -111,7 +121,6 @@ int main() {
 
   /* Reuse for writing to UDP socket */
   if (logger.connect("::1", 8887, 0, 1)) {
-
     LOGE(&logger, loge<>::INFO, "UDP socket %d %s", 10, "foo");
     LOGE(&logger, loge<>::DEBUG, "UDP socket %d %s", 10, "bar");
     LOGE(&logger, loge<>::WARNING, "UDP socket %d %s", 10, "baz");
@@ -124,8 +133,6 @@ int main() {
 
   /* Reuse for writing to TCP socket */
   if (logger.connect("::1", 8889, 1, 1)) {
-  //if (logger.connect("127.0.0.1", 8889, 1, 0)) {
-
     LOGE(&logger, loge<>::INFO, "TCP socket %d %s", 10, "foo");
     LOGE(&logger, loge<>::DEBUG, "TCP socket %d %s", 10, "bar");
     LOGE(&logger, loge<>::WARNING, "TCP socket %d %s", 10, "baz");
