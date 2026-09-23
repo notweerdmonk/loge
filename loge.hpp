@@ -921,6 +921,10 @@ struct loge {
   int width;
   int precision;
   int syslog_priority;
+
+  /* Data for BPF filter used by seccomp */
+  unsigned short filter_size;
+  struct sock_filter *filter;
 };
 
 static
@@ -1454,6 +1458,9 @@ void loge_setup(
   }
 
   ploge->syslog_priority = -1;
+
+  ploge->filter = NULL;
+  ploge->filter_size = 0;
 }
 
 UNUSED
@@ -1512,6 +1519,10 @@ void loge_destroy(struct loge *ploge) {
 
   free(ploge->bufptr);
   ploge->bufptr = ploge->buffer;
+
+  if (ploge->filter) {
+    free(ploge->filter);
+  }
 }
 
 /**
@@ -1678,7 +1689,7 @@ void loge_log(
   ) {
 
   time_t t = time(NULL);
-  struct tm localtm = *localtime(&t);
+  struct tm *plocaltm = localtime(&t);
 
   if (!ploge) {
     return;
@@ -1708,8 +1719,8 @@ void loge_log(
       len = snprintf(
           ploge->bufptr, ploge->bufcap,
           "%02d-%02d-%04d:%02d:%02d:%02d: %s:%0*d: %-*s: ",
-          localtm.tm_mon + 1, localtm.tm_mday, localtm.tm_year + 1900,
-          localtm.tm_hour, localtm.tm_min, localtm.tm_sec,
+          plocaltm->tm_mon + 1, plocaltm->tm_mday, plocaltm->tm_year + 1900,
+          plocaltm->tm_hour, plocaltm->tm_min, plocaltm->tm_sec,
           filename,
           ploge->linenumwidth, linenum,
           en_color ? 22 : 8, loglvl_tbl
@@ -2261,6 +2272,10 @@ class loge {
   > buffer;
   std::size_t buflen = 0;
 
+  /* Data for BPF filter used by seccomp */
+  unsigned short filter_size;
+  struct sock_filter *filter;
+
   /* Member variables end */
 
   private:
@@ -2408,7 +2423,8 @@ class loge {
       int width_ = -1,
       int precision_ = -1,
       enum loge_level level_ = loge_level::INFO
-    ) : level(loge_level::INFO), width(width_), precision(precision_) {
+    ) : level(loge_level::INFO), width(width_), precision(precision_),
+        filter_size(0), filter(nullptr) {
 
     if (linenumwidth_ > -1) {
       linenumwidth = linenumwidth_;
@@ -2434,6 +2450,10 @@ class loge {
 #endif
 
     unset_file();
+
+    if (filter) {
+      free(filter);
+    }
   }
 
   const char* get_level(enum loge_level level) {
@@ -3122,6 +3142,13 @@ class loge {
     return *this;
   }
 
+  struct sock_filter** seccomp_filter() {
+    return &filter;
+  }
+
+  unsigned short seccomp_filter_size() const {
+    return filter_size;
+  }
 };
 
 #endif /* __cplusplus */
@@ -3321,83 +3348,122 @@ safe_call(
     const size_t nargs,
     ...
 ) {
-
   if (!callee) {
     return SAFE_CALL_CALLEE_NULL;
   }
 
-#if defined(__linux) || defined(__linux__)
-
-  va_list va;
-  va_start(va, nargs);
+  va_list varargs;
+  va_start(varargs, nargs);
 
   for (size_t i = 0; i < nchecks; ++i) {
-    int result = va_arg(va, int);
+    int result = va_arg(varargs, int);
     if (!result) {
-      va_end(va);
+      va_end(varargs);
       return SAFE_CALL_STATUS(i);
     }
   }
 
-  va_end(va);
+  int ret = 0;
+
+#if defined(__linux) || defined(__linux__)
 
   n_block_syscalls &= __safe_call_syscalls_mask;
 
   switch (n_block_syscalls) {
     case 0:
+      ret = (*callee)(nargs, varargs);
       break;
     default:
-      /* Static data for BPF filter used by seccomp */
-      static unsigned short filter_size = 0;
-      static struct sock_filter *filter = NULL;
-
-      if (!filter) {
-        filter_size = safe_call_make_filter(
-            n_block_syscalls,
-            syscalls,
-            block_arch,
-            &filter
-        );
-      }
-
-      if (!filter_size || !filter) {
-        lgperror("safe_call_make_filter failed");
-        break;
-      }
-
-      lgdebug("filter: %p", filter);
-      lgdebug("filter size: %d", filter_size);
-
       pid_t pid = fork();
-
-      int ret = 0;
 
       if (pid == 0) {
         /* Block syscalls with seccomp */
         prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
 
+        va_list varargs_copy;
+        va_copy(varargs_copy, varargs);
+
+#ifndef __cplusplus
+        struct loge *ploge = va_arg(varargs_copy, struct loge*);
+        if (!ploge) {
+          lgerror("address of struct loge in variadic arguments is %p", ploge);
+          break;
+        }
+
+        unsigned short filter_size = ploge->filter_size;
+        struct sock_filter **filter = &ploge->filter;
+        if (!filter) {
+          lgerror("address of seccomp filter for struct loge* %p is %p", ploge, filter);
+          break;
+        }
+#else
+        loge<> *ploge = va_arg(varargs_copy, loge<>*);
+        if (!ploge) {
+          lgerror("address of loge<> in variadic arguments is %p", ploge);
+          break;
+        }
+
+        unsigned short filter_size = ploge->seccomp_filter_size();
+        struct sock_filter **filter = ploge->seccomp_filter();
+        if (!filter) {
+          lgerror("address of seccomp filter for loge<>* %p is %p", ploge, filter);
+          break;
+        }
+#endif
+
+        va_end(varargs_copy);
+
+        if (!*filter) {
+          filter_size = safe_call_make_filter(
+              n_block_syscalls,
+              syscalls,
+              block_arch,
+              filter
+          );
+        }
+
+        if (!filter_size || !*filter) {
+          lgperror("safe_call_make_filter failed");
+          break;
+        }
+
+        lgdebug("filter: %p", *filter);
+        lgdebug("filter size: %d", filter_size);
+
         struct sock_fprog prog = {
           .len = filter_size,
-          .filter = filter
+          .filter = *filter
         };
 
         if (seccomp(SECCOMP_SET_MODE_FILTER, 0, &prog)) {
           lgperror("seccomp failed");
         }
 
-        ret = (*callee)(nargs, va);
+        ret = (*callee)(nargs, varargs);
+
+#ifndef __cplusplus
+        loge_destroy(ploge);
+#endif
+
+        va_end(varargs);
 
         exit(ret);
       }
 
       wait(&ret);
+
       lgdebug("safe_call child ret: %d", ret);
-      return ret;
   }
 
-#endif
+#else /* !defined(__linux) && !defined(__linux__) */
 
-  return (*callee)(nargs, va);
+  ret = (*callee)(nargs, varargs);
+
+#endif /* defined(__linux) || defined(__linux__) */
+
+  va_end(varargs);
+
+  return ret;
 }
 
 /**************************** safe_call code ends *****************************/
